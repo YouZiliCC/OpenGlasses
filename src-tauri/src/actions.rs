@@ -200,7 +200,7 @@ fn on_explain(app: &AppHandle) {
             anchor,
             source,
         } => explain_text(app, text, anchor, source),
-        GrabResult::Empty { .. } => {
+        GrabResult::Empty => {
             match ai::active_meta(app) {
                 Some(m) => {
                     ai::dismiss(app, &m.id);

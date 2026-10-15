@@ -45,7 +45,7 @@ pub enum GrabResult {
     /// `anchor` = union of UIA selection rects (physical px), when available and ≤2000 chars.
     Text { text: String, anchor: Option<PhysRect>, source: SourceInfo },
     /// Definitely nothing selected (UIA TextPattern with an empty selection, or copy produced nothing).
-    Empty { source: SourceInfo },
+    Empty,
     /// Abort with a toast code: "RELEASE KEYS", "ELEVATED APP", "NO SELECTION".
     Toast(&'static str),
     /// Foreground window is ours (or none): do nothing.
@@ -135,7 +135,7 @@ pub fn grab_selection() -> GrabResult {
     };
     let text = text.replace("\r\n", "\n").replace('\r', "\n");
     match text.trim() {
-        "" => GrabResult::Empty { source },
+        "" => GrabResult::Empty,
         t => GrabResult::Text { text: t.to_string(), anchor, source },
     }
 }

@@ -66,7 +66,6 @@ pub struct ActiveMeta {
     pub lens: String,
     pub pinned: bool,
     pub errored: bool,
-    pub stale: bool,
     pub source_text: String,
     pub source: Option<SourceInfo>,
 }
@@ -212,7 +211,6 @@ pub fn active_meta(app: &AppHandle) -> Option<ActiveMeta> {
         lens: a.view.lens.clone(),
         pinned: a.view.pinned,
         errored: a.view.error.is_some(),
-        stale: a.stale,
         source_text: a.source_text.clone(),
         source: a.source.clone(),
     })
@@ -404,7 +402,7 @@ fn close(app: &AppHandle, a: Active) {
     if let Some(g) = &a.view.glass {
         capture::drop_frame(app, &g.url);
     }
-    windows::hide_panel(app, a.source.as_ref().map_or(0, |s| s.hwnd));
+    windows::hide_panel_after_fade(app, &a.view.id, a.source.as_ref().map_or(0, |s| s.hwnd));
     telemetry::set_mode(app, HudMode::Standby);
 }
 

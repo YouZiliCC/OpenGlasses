@@ -1,5 +1,4 @@
 //! OpenGlasses core. Module map: docs/DESIGN.md §4.
-#![allow(dead_code, unused_variables)] // TEMP(phase-0 stubs): removed at integration
 
 mod actions;
 mod ai;

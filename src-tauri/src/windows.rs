@@ -274,7 +274,8 @@ pub fn request_panel(app: &AppHandle, lens_label: &str, id: &str, r#box: Rect, g
     let Some(lens) = lens_by_label(app, lens_label) else { return };
     let pe = PanelEvent {
         id: id.to_string(),
-        mode: if meta.style == Style::Rail { PanelMode::Rail } else { PanelMode::Card },
+        // Scan results are always a card list, whatever the default style (DESIGN §2.6).
+        mode: if meta.style == Style::Rail && meta.kind != Kind::Scan { PanelMode::Rail } else { PanelMode::Card },
         r#box,
         grow_up,
         item_key,
@@ -349,6 +350,26 @@ pub fn hide_panel(app: &AppHandle, restore_focus_to: isize) {
                 let _ = SetForegroundWindow(HWND(restore_focus_to as _));
             }
             let _ = ShowWindow(h, SW_HIDE);
+        }
+    });
+}
+
+/// Dismiss path: let the panel's 150 ms CSS fade play, then hide — unless a newer session
+/// took the panel over meanwhile (its request re-places the still-visible window).
+pub(crate) fn hide_panel_after_fade(app: &AppHandle, id: &str, restore_focus_to: isize) {
+    {
+        let mut p = win(app).panel.lock().unwrap();
+        if p.event.as_ref().is_some_and(|e| e.id != id) {
+            return;
+        }
+        // Late height reports for the dismissed session are ignored from now on.
+        p.event = None;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        if win(&app).panel.lock().unwrap().event.is_none() {
+            hide_panel(&app, restore_focus_to);
         }
     });
 }
