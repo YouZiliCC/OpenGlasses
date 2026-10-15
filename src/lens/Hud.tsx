@@ -1,16 +1,20 @@
 // Four-corner HUD on the primary lens (DESIGN §2.5). Corners fade near the cursor, light up in
-// sequence on every Lens-On, and only the THINKING mode label loops.
+// sequence on every Lens-On (theme CSS staggers them by --i), and only the THINKING label loops.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { HudState } from "../shared/ipc";
+import { bootDuration } from "../shared/themeLoader";
 import { useLens, viewSize, workArea } from "./store";
 
 type Pos = "tl" | "tr" | "bl" | "br";
 const INSET = 14;
 const AVOID_PX = 60;
+/** --i of each corner (DESIGN §10.5). */
+const ORDER: Record<Pos, number> = { tl: 0, tr: 1, bl: 2, br: 3 };
 
-/** Rolls up from 0 once per mount (corners remount on every Lens-On); later updates jump
- * straight to the value, so 1 Hz telemetry never keeps a rAF loop running while idle. */
-function useTween(target: number, decimals = 0, ms = 400): number {
+/** Rolls up from 0 once per mount (corners remount on every Lens-On), over the boot stage, so the
+ * digits still move when the theme lights the corner; later updates jump straight to the value,
+ * so 1 Hz telemetry never keeps a rAF loop running while idle. */
+function useTween(target: number, decimals = 0, ms = bootDuration()): number {
   const [shown, setShown] = useState(0);
   const cur = useRef(0);
   const rolled = useRef(false);
@@ -55,22 +59,22 @@ function useNear(ref: RefObject<HTMLElement | null>): boolean {
   return near;
 }
 
-function Corner({ pos, order, lit, children }: { pos: Pos; order: number; lit: boolean; children: ReactNode }) {
+function Corner({ pos, lit, children }: { pos: Pos; lit: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const near = useNear(ref);
   const w = workArea();
   const v = viewSize();
   const top = pos[0] === "t";
   const left = pos[1] === "l";
-  const style: CSSProperties = {
+  const style = {
     top: top ? w.y + INSET : undefined,
     bottom: top ? undefined : v.h - (w.y + w.h) + INSET,
     left: left ? w.x + INSET : undefined,
     right: left ? undefined : v.w - (w.x + w.w) + INSET,
-    animationDelay: `${150 + order * 60}ms`,
-  };
+    "--i": ORDER[pos],
+  } as CSSProperties;
   return (
-    <div ref={ref} className={`hud hud-${pos}${near ? " near" : ""}${lit ? " lit" : ""}`} style={style}>
+    <div ref={ref} className={`hud hud-${pos} og-hud-corner${near ? " near" : ""}${lit ? " lit" : ""}`} style={style}>
       {children}
     </div>
   );
@@ -140,24 +144,24 @@ export function Hud() {
   return (
     <>
       {on.tl && (
-        <Corner key={`tl${seq}`} pos="tl" order={0} lit={lit}>
+        <Corner key={`tl${seq}`} pos="tl" lit={lit}>
           <Status hud={hud} />
         </Corner>
       )}
       {on.tr && (
-        <Corner key={`tr${seq}`} pos="tr" order={1} lit={lit}>
+        <Corner key={`tr${seq}`} pos="tr" lit={lit}>
           <System hud={hud} />
         </Corner>
       )}
       {on.br && (
-        <Corner key={`br${seq}`} pos="br" order={2} lit={lit}>
+        <Corner key={`br${seq}`} pos="br" lit={lit}>
           <div className="dim">
             {`${hk.explain} EXPLAIN · ${hk.capture} CAPTURE · ${hk.scan} SCAN`.toUpperCase()}
           </div>
         </Corner>
       )}
       {on.bl && (
-        <Corner key={`bl${seq}`} pos="bl" order={3} lit={lit}>
+        <Corner key={`bl${seq}`} pos="bl" lit={lit}>
           <Model hud={hud} />
         </Corner>
       )}

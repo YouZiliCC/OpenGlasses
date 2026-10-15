@@ -1,4 +1,4 @@
-// Toast (DESIGN §2.7): one --warn line next to the cursor for 1.6 s, then a fade.
+// Toast (DESIGN §2.7): one --og-warn line next to the cursor for 1.6 s, then a fade.
 import { useLayoutEffect, useRef } from "react";
 import { useLens } from "./store";
 

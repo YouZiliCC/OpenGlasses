@@ -1,13 +1,51 @@
-/* Settings window: a normal opaque window in the same terminal-green look. */
+/* Settings window: a normal opaque window in the theme's look, framed by --og-panel-border,
+   with our own title bar (no native decorations, DESIGN §10.7). */
 html,
 body,
 #root {
-  background: #030e07;
+  background: var(--og-settings-bg);
 }
 
-.set { display: flex; flex-direction: column; height: 100%; }
+.set { display: flex; flex-direction: column; height: 100%; border: var(--og-panel-border); }
 .set-loading { padding: 16px; }
-.dim { color: var(--phosphor-dim); }
+.dim { color: var(--og-accent-dim); }
+
+/* Title bar: drag region + minimize/close, ~36px like the native one. */
+.og-titlebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding-left: 14px;
+  border-bottom: 1px solid var(--og-accent-faint);
+}
+.og-titlebar-title {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  font-family: var(--og-font-display);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--og-accent-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.og-titlebar-btn {
+  flex: none;
+  width: 46px;
+  height: 100%;
+  font: inherit;
+  font-size: 12px;
+  color: var(--og-accent-dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.og-titlebar-btn:hover { color: var(--og-accent); background: color-mix(in srgb, var(--og-accent) 10%, transparent); text-shadow: var(--og-glow); }
+.og-titlebar-close:hover { color: var(--og-warn); background: color-mix(in srgb, var(--og-warn) 14%, transparent); text-shadow: var(--og-glow-warn); }
 
 .set-tabs {
   flex: none;
@@ -15,23 +53,23 @@ body,
   align-items: flex-end;
   gap: 2px;
   padding: 10px 16px 0;
-  border-bottom: 1px solid var(--phosphor-faint);
+  border-bottom: 1px solid var(--og-accent-faint);
 }
-.set-brand { margin-right: 16px; padding-bottom: 6px; letter-spacing: 0.08em; }
+.set-brand { margin-right: 16px; padding-bottom: 6px; letter-spacing: 0.08em; font-family: var(--og-font-display); }
 .tab {
   margin-bottom: -1px;
   padding: 5px 12px;
   font: inherit;
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--phosphor-dim);
+  color: var(--og-accent-dim);
   background: none;
   border: 1px solid transparent;
   border-bottom: 0;
   cursor: pointer;
 }
-.tab:hover { color: var(--phosphor); }
-.tab.on { color: var(--phosphor); text-shadow: var(--glow); background: #030e07; border-color: var(--phosphor-faint); }
+.tab:hover { color: var(--og-accent); }
+.tab.on { color: var(--og-accent); text-shadow: var(--og-glow); background: var(--og-settings-bg); border-color: var(--og-accent-faint); }
 
 .set-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px; }
 .set-main > * { max-width: 700px; }
@@ -41,15 +79,15 @@ body,
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-top: 1px solid var(--phosphor-faint);
+  border-top: 1px solid var(--og-accent-faint);
 }
 .set-status { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .field { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 4px 12px; margin-bottom: 12px; }
-.lbl { padding-top: 4px; color: var(--phosphor-dim); }
-.hint { margin-top: 3px; font-size: 11px; color: var(--phosphor-dim); overflow-wrap: anywhere; user-select: text; }
+.lbl { padding-top: 4px; color: var(--og-accent-dim); }
+.hint { margin-top: 3px; font-size: 11px; color: var(--og-accent-dim); overflow-wrap: anywhere; user-select: text; }
 .inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.inline input { flex: 1; min-width: 160px; }
+.inline input:not([type="checkbox"], [type="radio"]) { flex: 1; min-width: 160px; }
 .note { margin: 0 0 14px; font-size: 12px; }
 
 input[type="text"],
@@ -60,24 +98,24 @@ textarea {
   width: 100%;
   padding: 3px 6px;
   font: inherit;
-  color: var(--phosphor);
-  caret-color: var(--phosphor);
-  background: rgba(57, 255, 122, 0.04);
-  border: 1px solid var(--phosphor-faint);
+  color: var(--og-text);
+  caret-color: var(--og-accent);
+  background: color-mix(in srgb, var(--og-accent) 4%, transparent);
+  border: 1px solid var(--og-accent-faint);
   border-radius: 0;
   outline: 0;
   user-select: text;
 }
 input:focus,
 select:focus,
-textarea:focus { border-color: var(--phosphor-dim); }
-input[readonly] { color: var(--phosphor-dim); background: transparent; }
+textarea:focus { border-color: var(--og-accent-dim); }
+input[readonly] { color: var(--og-accent-dim); background: transparent; }
 input::placeholder,
-textarea::placeholder { color: var(--phosphor-dim); opacity: 0.6; }
+textarea::placeholder { color: var(--og-accent-dim); opacity: 0.6; }
 textarea { min-height: 5.5em; resize: vertical; }
-select option { color: var(--phosphor); background: #030e07; }
+select option { color: var(--og-text); background: var(--og-settings-bg); }
 input[type="checkbox"],
-input[type="radio"] { flex: none; margin: 0; accent-color: var(--phosphor); }
+input[type="radio"] { flex: none; margin: 0; accent-color: var(--og-accent); }
 
 .btn {
   padding: 2px 12px;
@@ -85,23 +123,24 @@ input[type="radio"] { flex: none; margin: 0; accent-color: var(--phosphor); }
   font-size: 12px;
   letter-spacing: 0.08em;
   white-space: nowrap;
-  color: var(--phosphor);
+  color: var(--og-accent);
   background: none;
-  border: 1px solid var(--phosphor-dim);
+  border: 1px solid var(--og-accent-dim);
   cursor: pointer;
 }
-.btn:hover:not(:disabled) { background: rgba(57, 255, 122, 0.1); text-shadow: var(--glow); }
+.btn:hover:not(:disabled) { background: color-mix(in srgb, var(--og-accent) 10%, transparent); text-shadow: var(--og-glow); }
 .btn:disabled { opacity: 0.4; cursor: default; }
-.btn.primary { border-color: var(--phosphor); }
+.btn.primary { border-color: var(--og-accent); }
 
 .sec { margin-bottom: 18px; }
 .sec h3 {
   margin: 0 0 8px;
+  font-family: var(--og-font-display);
   font-size: 11px;
   font-weight: normal;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--phosphor-dim);
+  color: var(--og-accent-dim);
 }
 .opt { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }

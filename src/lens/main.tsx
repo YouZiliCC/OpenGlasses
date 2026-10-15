@@ -1,9 +1,10 @@
 // Lens entry (DESIGN §3.8 rules 1–3): register every listener on this window, then
-// frontend_ready, then render. Registration lives outside React, so it happens exactly once.
-import "../shared/theme.css";
+// frontend_ready, then the theme, then render. Registration lives outside React, so it happens exactly once.
+import "../shared/base.css";
 import "./lens.css";
 import { createRoot } from "react-dom/client";
 import { call, on } from "../shared/bridge";
+import { initTheme, onThemes, setTheme } from "../shared/themeLoader";
 import { trackDwell } from "./hover";
 import { Lens } from "./Lens";
 import { applyInit, onLensOn, onSession, onToast, useLens } from "./store";
@@ -20,10 +21,16 @@ async function boot() {
     on("og://lens-on", onLensOn),
     on("og://freeze", (freeze) => set({ freeze })),
     on("og://session", onSession),
-    on("og://settings", (settings) => set({ settings })),
-    on("og://visibility", (v) => set({ visible: v.on })),
+    on("og://settings", (settings) => {
+      set({ settings });
+      setTheme(settings);
+    }),
+    // Hidden mid-boot: the stage unmounts before its timer ends it, so drop it here.
+    on("og://visibility", (v) => set(v.on ? { visible: true } : { visible: false, lensOn: null })),
+    on("og://themes", onThemes),
   ]);
   applyInit(await call("frontend_ready"));
+  await initTheme(useLens.getState().settings);
   createRoot(document.getElementById("root")!).render(<Lens />);
 }
 

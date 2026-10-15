@@ -1,10 +1,6 @@
-/* Lens overlay (DESIGN §2.3–2.8). Everything is click-through except .freeze.
-   No backdrop-filter, no filter blur; the only looping animations are the caret and THINKING. */
-:root {
-  /* Scan anchor dot: cyan-leaning phosphor. */
-  --anchor-dot: #3dffc8;
-}
-
+/* Lens overlay (DESIGN §2.3–2.8, §10.5). Everything is click-through except .freeze.
+   No backdrop-filter, no filter blur; the only looping animations are the caret and THINKING.
+   Durations scale with --og-speed, except the toast and the 150 ms dismiss fade (JS timers). */
 .lens {
   position: fixed;
   inset: 0;
@@ -33,22 +29,19 @@
 @keyframes og-appear {
   from { opacity: 0; }
 }
-@keyframes og-fade-out {
-  to { opacity: 0; }
-}
 
 /* ---- Lock-on ---- */
 .brackets {
-  color: var(--phosphor);
+  color: var(--og-accent);
 }
 .brackets.warn {
-  color: var(--warn);
+  color: var(--og-warn);
 }
 .brackets path {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
-  animation: og-converge 120ms ease-out both;
+  animation: og-converge calc(120ms * var(--og-speed)) ease-out both;
 }
 @keyframes og-converge {
   from { transform: translate(var(--dx), var(--dy)); opacity: 0; }
@@ -57,24 +50,24 @@
 /* Paths use pathLength=1, so a dash of 1 is the whole line. */
 .leader .line {
   fill: none;
-  stroke: var(--phosphor);
+  stroke: var(--og-accent);
   stroke-width: 1;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: og-draw 150ms ease-out var(--delay) forwards;
+  animation: og-draw calc(150ms * var(--og-speed)) ease-out calc(var(--delay) * var(--og-speed)) forwards;
 }
 .leader .marker {
-  fill: var(--phosphor);
-  animation: og-appear 1ms linear calc(var(--delay) + 150ms) backwards;
+  fill: var(--og-accent);
+  animation: og-appear 1ms linear calc((var(--delay) + 150ms) * var(--og-speed)) backwards;
 }
 
 .callout {
   position: absolute;
   isolation: isolate;
-  animation: og-crt-on 100ms linear 220ms backwards;
+  animation: og-crt-on calc(100ms * var(--og-speed)) linear calc(220ms * var(--og-speed)) backwards;
 }
 .callout .tldr {
-  text-shadow: var(--glow);
+  text-shadow: var(--og-glow);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -102,6 +95,7 @@
   position: absolute;
   inset: -12px -18px;
   z-index: -1;
+  border-radius: var(--og-radius);
   background-repeat: repeat, no-repeat, no-repeat;
   mask-image:
     linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent),
@@ -109,7 +103,7 @@
   mask-composite: intersect;
 }
 .glass.fallback {
-  background: var(--scanlines), var(--panel-fallback);
+  background: var(--og-scanlines), var(--og-panel-bg);
 }
 
 /* ---- Caption ---- */
@@ -124,7 +118,7 @@
   isolation: isolate;
   max-width: 100%;
   padding: 4px 10px;
-  animation: og-crt-on 100ms linear;
+  animation: og-crt-on calc(100ms * var(--og-speed)) linear;
 }
 .caption-text {
   font-size: 15px;
@@ -147,21 +141,22 @@
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  background: var(--anchor-dot);
-  box-shadow: 0 0 6px var(--anchor-dot);
-  animation: og-breathe-dot 1.2s ease-in-out 3;
+  background: var(--og-accent-2);
+  box-shadow: 0 0 6px var(--og-accent-2);
+  animation: og-breathe-dot calc(1200ms * var(--og-speed)) ease-in-out 3;
 }
 @keyframes og-breathe-dot {
   50% { transform: scale(1.75); opacity: 0.35; }
 }
 
-/* ---- Toast: 1.6 s, then a 200 ms fade ---- */
+/* ---- Toast: 1.6 s, then a 200 ms fade (fixed: the store removes it at 1.8 s) ---- */
 .toast {
   position: absolute;
   padding: 2px 8px;
   white-space: nowrap;
   letter-spacing: 0.06em;
-  background: var(--panel-fallback);
+  background: var(--og-panel-bg);
+  border-radius: var(--og-radius);
   animation: og-toast 1.8s linear forwards;
 }
 @keyframes og-toast {
@@ -174,14 +169,15 @@
 /* ---- HUD ---- */
 .hud {
   position: absolute;
+  font-family: var(--og-font-display);
   font-size: 12px;
   line-height: 1.5;
   letter-spacing: 0.05em;
   white-space: pre;
   opacity: 0.8;
-  transition: opacity 150ms linear;
+  transition: opacity calc(150ms * var(--og-speed)) linear;
   /* Dark halo first so the glow stays legible over white pages. */
-  text-shadow: 0 0 2px #000, var(--glow);
+  text-shadow: 0 0 2px #000, var(--og-glow);
 }
 .hud-tr,
 .hud-br {
@@ -190,98 +186,50 @@
 .hud.near {
   opacity: 0.15;
 }
-/* No 100% keyframe: it ends on the current opacity (.8 or .15). */
+/* Light-up after each Lens-On, staggered by --i (tl 0, tr 1, bl 2, br 3). Plain fade here;
+   themes redefine @keyframes og-hud-on. No 100% keyframe: it ends on the current opacity. */
 .hud.lit {
-  animation: og-hud-on 240ms linear backwards;
+  animation: og-hud-on calc(240ms * var(--og-speed)) linear calc((150ms + var(--i) * 60ms) * var(--og-speed)) backwards;
 }
 @keyframes og-hud-on {
   0% { opacity: 0; }
-  35% { opacity: 1; }
-  55% { opacity: 0.2; }
-  75% { opacity: 1; }
 }
 .hud .dim {
-  color: var(--phosphor-dim);
+  color: var(--og-accent-dim);
 }
 .breathe {
-  animation: og-breathe 1.6s ease-in-out infinite;
+  animation: og-breathe calc(1600ms * var(--og-speed)) ease-in-out infinite;
 }
 @keyframes og-breathe {
   50% { opacity: 0.3; }
 }
 
-/* ---- Lens-On (400 ms) ---- */
-.lens-on {
+/* ---- Boot stage (DESIGN §10.5): fixed DOM animated by the theme, unmounted after
+   bootMs × speed. Default: f0 (most blurred) fades out over 1 s; f1/f2 and the fx layers stay
+   empty. Frames use opacity, not display:none, so all three load at mount. ---- */
+.og-boot,
+.og-boot-frame,
+.og-boot-fx {
   position: absolute;
   inset: 0;
 }
-.lo-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
+.og-boot-frame {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   opacity: 0;
 }
-/* Sharper frames stack on top: each fades in over the previous one, which then drops out unseen.
-   150 ms = 37.5%, then 1/12 -> 1/4 -> transparent. */
-.lo-f0 { animation: og-lo-0 400ms linear forwards; }
-.lo-f1 { animation: og-lo-1 400ms linear forwards; }
-.lo-f2 { animation: og-lo-2 400ms linear forwards; }
-@keyframes og-lo-0 {
-  0%, 58% { opacity: 1; }
-  59%, 100% { opacity: 0; }
+.og-boot-f0 {
+  background-image: var(--og-frame-0);
+  animation: og-boot-fade calc(1000ms * var(--og-speed)) linear forwards;
 }
-@keyframes og-lo-1 {
-  0%, 37.5% { opacity: 0; }
-  58%, 79% { opacity: 1; }
-  80%, 100% { opacity: 0; }
+.og-boot-f1 {
+  background-image: var(--og-frame-1);
 }
-@keyframes og-lo-2 {
-  0%, 58% { opacity: 0; }
-  79% { opacity: 1; }
-  100% { opacity: 0; }
+.og-boot-f2 {
+  background-image: var(--og-frame-2);
 }
-/* Green tint + vignette + scanlines over the frames. */
-.lo-fx {
-  position: absolute;
-  inset: 0;
-  background:
-    var(--scanlines),
-    radial-gradient(ellipse at center, transparent 45%, rgba(0, 8, 3, 0.75) 100%),
-    rgba(6, 48, 20, 0.45);
-  animation: og-lo-fx 400ms linear forwards;
-}
-.lo-fx.bare {
-  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 12, 5, 0.8) 100%);
-  animation-duration: 550ms;
-}
-@keyframes og-lo-fx {
-  0%, 75% { opacity: 1; }
-  100% { opacity: 0; }
-}
-.lo-sweep {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--phosphor);
-  box-shadow: 0 0 14px 3px rgba(57, 255, 122, 0.55);
-  animation: og-sweep 400ms ease-in-out forwards;
-}
-@keyframes og-sweep {
-  to { transform: translateY(100vh); opacity: 0.2; }
-}
-.lo-border {
-  fill: none;
-  stroke: var(--phosphor);
-  stroke-width: 1.5;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation:
-    og-draw 300ms ease-out 50ms forwards,
-    og-fade-out 200ms linear 450ms forwards;
+@keyframes og-boot-fade {
+  from { opacity: 1; }
 }
 
 /* ---- SELECT ---- */
@@ -306,7 +254,7 @@
 }
 .sel {
   position: absolute;
-  outline: 1px solid var(--phosphor);
+  outline: 1px solid var(--og-accent);
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
 }
 .sel-size {
@@ -317,8 +265,8 @@
   padding: 0 6px;
   font-size: 12px;
   white-space: nowrap;
-  background: var(--panel-fallback);
-  text-shadow: var(--glow);
+  background: var(--og-panel-bg);
+  text-shadow: var(--og-glow);
 }
 .sel-size.inside {
   top: auto;

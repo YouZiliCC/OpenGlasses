@@ -55,7 +55,7 @@ interface LensState {
   cursor: CursorEvent;
   toast: ToastEvent | null;
   toastSeq: number;
-  /** Lens-On currently playing; `lensOnSeq` keeps counting after it ends (HUD light-up key). */
+  /** Boot stage currently mounted; `lensOnSeq` keeps counting after it ends (HUD light-up key). */
   lensOn: LensOnEvent | null;
   lensOnSeq: number;
   freeze: FreezeEvent;
@@ -199,10 +199,11 @@ export function onToast(t: ToastEvent) {
   }, 1800);
 }
 
+/** Mount the boot stage (DESIGN §10.5); LensOn ends it bootMs × speed after it mounts. */
 export function onLensOn(ev: LensOnEvent) {
-  const seq = get().lensOnSeq + 1;
-  set({ lensOn: ev, lensOnSeq: seq });
-  setTimeout(() => {
-    if (get().lensOnSeq === seq) set({ lensOn: null });
-  }, 700);
+  set({ lensOn: ev, lensOnSeq: get().lensOnSeq + 1 });
+}
+
+export function endLensOn(seq: number) {
+  if (get().lensOnSeq === seq) set({ lensOn: null });
 }

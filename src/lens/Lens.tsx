@@ -30,9 +30,10 @@ function SessionView() {
 export function Lens() {
   const visible = useLens((s) => s.visible);
   const primary = useLens((s) => s.isPrimary);
+  const booting = useLens((s) => s.lensOn !== null);
   if (!visible) return null;
   return (
-    <div className="lens">
+    <div className={booting ? "lens og-booting" : "lens"}>
       <SessionView />
       <FreezeSelect />
       {primary && <LensOn />}

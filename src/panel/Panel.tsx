@@ -9,7 +9,12 @@ import { Conversation, GLYPH } from "./Conversation";
 import { History } from "./History";
 import { togglePin, usePanel, type PanelSession } from "./store";
 
-const BORDER = 2; // 1px top + 1px bottom
+/** Vertical border + padding of the panel box: the theme decides them (--og-panel-border). */
+function frame(el: HTMLElement | null): number {
+  if (!el) return 2;
+  const cs = getComputedStyle(el);
+  return [cs.borderTopWidth, cs.borderBottomWidth, cs.paddingTop, cs.paddingBottom].reduce((n, v) => n + parseFloat(v), 0);
+}
 
 export function Panel() {
   const session = usePanel((s) => s.session);
@@ -26,7 +31,7 @@ function PanelView({ s }: { s: PanelSession }) {
   const body = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const foot = useRef<HTMLDivElement>(null);
-  useReportHeight(panel, [head, inner, foot]);
+  useReportHeight(panel, root, [head, inner, foot]);
   useStickToBottom(body, s.messages);
 
   // CRT flicker each time the panel is (re)requested, i.e. when it appears.
@@ -71,13 +76,13 @@ function PanelView({ s }: { s: PanelSession }) {
 /** Snapshot glass aligned to screen coordinates; acrylic lets the native effect through. */
 function background(s: PanelSession, panel: PanelEvent | null, mode: GlassMode, winH: number): CSSProperties {
   // Longhands only, so React never mixes `background` with its sub-properties.
-  if (mode === "acrylic") return { backgroundColor: "rgba(2, 12, 5, 0.35)" };
+  if (mode === "acrylic") return { backgroundColor: "color-mix(in srgb, var(--og-glass-tint) 55%, transparent)" };
   const g = s.glass;
-  if (!g || !panel) return { backgroundColor: "var(--panel-fallback)", backgroundImage: "var(--scanlines)" };
+  if (!g || !panel) return { backgroundColor: "var(--og-panel-bg)", backgroundImage: "var(--og-scanlines)" };
   const { x, y, h } = panel.box;
   const top = panel.growUp ? y + h - winH : y;
   return {
-    backgroundImage: `var(--scanlines), linear-gradient(var(--glass-tint), var(--glass-tint)), url("${g.url}")`,
+    backgroundImage: `var(--og-scanlines), linear-gradient(var(--og-glass-tint), var(--og-glass-tint)), url("${g.url}")`,
     backgroundSize: `auto, auto, ${g.w}px ${g.h}px`,
     backgroundPosition: `0 0, 0 0, ${-x}px ${-top}px`,
     backgroundRepeat: "repeat, no-repeat, no-repeat",
@@ -99,7 +104,11 @@ function useWindowHeight(): number {
  * PanelEvent (Rust shows the panel only after that), then on resize, throttled to ~100 ms.
  * Rail always reports box.h. Rust caps the height at box.h; longer content scrolls in `.pb`.
  */
-function useReportHeight(panel: PanelEvent | null, parts: RefObject<HTMLElement | null>[]) {
+function useReportHeight(
+  panel: PanelEvent | null,
+  root: RefObject<HTMLElement | null>,
+  parts: RefObject<HTMLElement | null>[],
+) {
   const last = useRef({ id: "", h: 0, at: 0 });
   useLayoutEffect(() => {
     if (!panel) return;
@@ -107,7 +116,7 @@ function useReportHeight(panel: PanelEvent | null, parts: RefObject<HTMLElement 
     const send = (force: boolean) => {
       const cssH = rail
         ? panel.box.h
-        : Math.ceil(parts.reduce((sum, r) => sum + (r.current?.getBoundingClientRect().height ?? 0), BORDER));
+        : Math.ceil(parts.reduce((sum, r) => sum + (r.current?.getBoundingClientRect().height ?? 0), frame(root.current)));
       if (!force && last.current.id === panel.id && last.current.h === cssH) return;
       last.current = { id: panel.id, h: cssH, at: performance.now() };
       call("panel_set_height", { id: panel.id, cssH }).catch(console.error);
@@ -128,7 +137,7 @@ function useReportHeight(panel: PanelEvent | null, parts: RefObject<HTMLElement 
       ro.disconnect();
       clearTimeout(timer);
     };
-    // `parts` are stable refs.
+    // `root` and `parts` are stable refs.
   }, [panel]);
 }
 
