@@ -25,6 +25,8 @@ pub enum Phase {
 #[derive(Default)]
 pub struct FlowState {
     pub phase: Mutex<Phase>,
+    /// Last toast; telemetry keeps the lens visible for it (fullscreen suppression).
+    pub toast_at: Mutex<Option<Instant>>,
 }
 
 /// A busy flow (Grabbing / Scanning). Sets the phase to `next` (Idle unless changed) when
@@ -60,7 +62,8 @@ fn try_busy(app: &AppHandle, phase: Phase) -> Option<Busy<'_>> {
     })
 }
 
-fn is_busy(app: &AppHandle) -> bool {
+/// A Grabbing/Scanning flow is running (telemetry must not hide its lens meanwhile).
+pub(crate) fn is_busy(app: &AppHandle) -> bool {
     matches!(
         *st(app).flow.phase.lock().unwrap(),
         Phase::Grabbing | Phase::Scanning
@@ -97,6 +100,9 @@ fn cursor_lens(app: &AppHandle) -> Option<((i32, i32), LensInfo)> {
 /// Start a session unless the glasses were taken off meanwhile. Returns true if started.
 fn start(app: &AppHandle, ns: NewSession) -> bool {
     if !glasses_on(app) {
+        if let Some(g) = &ns.glass {
+            capture::drop_frame(app, &g.url);
+        }
         return false;
     }
     ai::start(app, ns);
@@ -384,6 +390,10 @@ pub fn on_escape(app: &AppHandle) {
 pub fn toast(app: &AppHandle, text: &str) {
     let (x, y) = windows::cursor_pos();
     if let Some(lens) = windows::lens_at(app, x, y) {
+        *st(app).flow.toast_at.lock().unwrap() = Some(Instant::now());
+        if lens.suppressed {
+            windows::set_lens_suppressed(app, &lens.label, false);
+        }
         let p = lens.to_css_point(x, y);
         windows::emit_to_window(
             app,
@@ -398,10 +408,20 @@ pub fn toast(app: &AppHandle, text: &str) {
     }
 }
 
+/// A toast was shown within the last 2 s (it needs its lens visible).
+pub(crate) fn recently_toasted(app: &AppHandle) -> bool {
+    st(app).flow.toast_at.lock().unwrap().is_some_and(|t| t.elapsed() < Duration::from_secs(2))
+}
+
+/// Rail rules apply to Rail sessions, but scan results always show as a card (DESIGN §2.6).
+fn is_rail(m: &ai::ActiveMeta) -> bool {
+    m.style == Style::Rail && m.kind != Kind::Scan
+}
+
 /// From cursor.rs: left-button down outside the panel (rule 6).
 pub fn on_click_outside(app: &AppHandle) {
     if let Some(m) = ai::active_meta(app) {
-        if !m.pinned && m.style != Style::Rail {
+        if !m.pinned && !is_rail(&m) {
             ai::dismiss(app, &m.id);
         }
     }
@@ -410,7 +430,7 @@ pub fn on_click_outside(app: &AppHandle) {
 /// From cursor.rs: the active session's source lost foreground / moved / minimized (rule 7).
 pub fn on_source_changed(app: &AppHandle) {
     if let Some(m) = ai::active_meta(app) {
-        if m.style == Style::Rail || m.pinned {
+        if is_rail(&m) || m.pinned {
             ai::mark_stale(app);
         } else {
             ai::dismiss(app, &m.id);

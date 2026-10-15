@@ -60,6 +60,8 @@ const SNAPSHOT_BUDGET: Duration = Duration::from_millis(200);
 const MAX_FORMAT_BYTES: usize = 16 << 20;
 const COPY_WAIT: Duration = Duration::from_millis(250);
 const OPEN_RETRY: Duration = Duration::from_millis(100);
+/// Longer retry used only to put the user's clipboard back after our copy replaced it.
+const RESTORE_RETRY: Duration = Duration::from_secs(1);
 
 /// Ctrl+C would interrupt a running command in these when nothing is selected.
 const CTRL_INSERT_PROCESSES: [&str; 7] = [
@@ -341,7 +343,11 @@ fn clipboard_selection(src: &SourceInfo) -> Result<String, &'static str> {
         return Err("RELEASE KEYS");
     }
     let win = MsgWindow::new().ok_or("NO SELECTION")?;
-    let (seq, saved) = snapshot(win.0).ok_or("NO SELECTION")?;
+    let (seq, saved) = bounded_snapshot().ok_or("NO SELECTION")?;
+    // The user may have switched windows while we waited; never copy from (or signal) another app.
+    if foreground_hwnd() != src.hwnd {
+        return Err("NO SELECTION");
+    }
     send_copy(wants_ctrl_insert(src));
     let t0 = Instant::now();
     while unsafe { GetClipboardSequenceNumber() } == seq {
@@ -350,10 +356,28 @@ fn clipboard_selection(src: &SourceInfo) -> Result<String, &'static str> {
         }
         sleep(Duration::from_millis(5));
     }
-    let _open = open_clipboard(win.0).ok_or("NO SELECTION")?;
+    // From here the user's clipboard has been replaced, so the restore is mandatory.
+    let Some(_open) = open_clipboard(win.0, OPEN_RETRY) else {
+        if let Some(_open) = open_clipboard(win.0, RESTORE_RETRY) {
+            unsafe { restore(&saved) };
+        }
+        return Err("NO SELECTION");
+    };
     let text = unsafe { read_unicode_text() }.unwrap_or_default();
     unsafe { restore(&saved) };
     Ok(text)
+}
+
+/// Snapshot on a helper thread: GetClipboardData on a delay-rendered format (e.g. a large Excel
+/// copy) can block for seconds, and the grab must not hang with it. On timeout the helper
+/// finishes on its own and closes the clipboard from its own thread.
+fn bounded_snapshot() -> Option<(u32, Saved)> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let r = MsgWindow::new().and_then(|w| snapshot(w.0));
+        let _ = tx.send(r);
+    });
+    rx.recv_timeout(SNAPSHOT_BUDGET + OPEN_RETRY).ok().flatten()
 }
 
 /// Wait until Alt/Ctrl/Shift/Win are physically up; false if still held after MODIFIER_WAIT.
@@ -428,14 +452,14 @@ impl Drop for ClipboardOpen {
     }
 }
 
-/// OpenClipboard, retrying every 10 ms for up to OPEN_RETRY.
-fn open_clipboard(owner: HWND) -> Option<ClipboardOpen> {
+/// OpenClipboard, retrying every 10 ms for up to `timeout`.
+fn open_clipboard(owner: HWND, timeout: Duration) -> Option<ClipboardOpen> {
     let t0 = Instant::now();
     loop {
         if unsafe { OpenClipboard(Some(owner)) }.is_ok() {
             return Some(ClipboardOpen);
         }
-        if t0.elapsed() >= OPEN_RETRY {
+        if t0.elapsed() >= timeout {
             return None;
         }
         sleep(Duration::from_millis(10));
@@ -449,7 +473,7 @@ type Saved = Vec<(u32, Vec<u8>)>;
 /// The sequence number is read while we hold the clipboard, so it matches the snapshot.
 fn snapshot(owner: HWND) -> Option<(u32, Saved)> {
     let t0 = Instant::now();
-    let _open = open_clipboard(owner)?;
+    let _open = open_clipboard(owner, OPEN_RETRY)?;
     let seq = unsafe { GetClipboardSequenceNumber() };
     let mut saved = Vec::new();
     let mut fmt = 0;

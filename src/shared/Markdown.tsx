@@ -36,7 +36,12 @@ export const Markdown = memo(function Markdown({ text, streaming }: { text: stri
   const src = normalizeMath(streaming ? remend(text) : text);
   return (
     <div className="md" onClick={onClick}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+      {/* No images: a remote <img> in model output would leak screen content without a click. */}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        disallowedElements={["img"]}
+      >
         {src}
       </ReactMarkdown>
     </div>

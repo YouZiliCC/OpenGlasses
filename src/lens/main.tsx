@@ -27,4 +27,8 @@ async function boot() {
   createRoot(document.getElementById("root")!).render(<Lens />);
 }
 
+// The WebView2 context menu (Reload, Save as…) must never appear on the overlay; right-click
+// during SELECT is a cancel (FreezeSelect).
+window.addEventListener("contextmenu", (e) => e.preventDefault());
+
 boot().catch((e) => console.error("lens boot failed", e));

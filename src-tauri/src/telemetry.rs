@@ -115,6 +115,10 @@ fn has_battery() -> bool {
 /// Hide the lens whose monitor is fully covered by the (non-own, non-shell) foreground window,
 /// unless that lens owns the active session or is selecting; un-hide every other lens.
 fn update_suppression(app: &AppHandle, fg: Option<&SourceInfo>) {
+    // A hotkey flow (or its toast) just un-suppressed its lens; don't hide it under it.
+    if crate::actions::is_busy(app) || crate::actions::recently_toasted(app) {
+        return;
+    }
     let lenses = crate::windows::lenses(app);
     let target = fg
         .filter(|s| s.hwnd != 0 && !matches!(grab::class_name(s.hwnd).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd"))

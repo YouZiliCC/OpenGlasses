@@ -70,7 +70,7 @@ pub(super) fn first_user(
         format!("<context app=\"{}\"{title}/>\n", attr(&s.process))
     });
     match kind {
-        Kind::Text => format!("{ctx}<selection>\n{}\n</selection>", clip_selection(text)),
+        Kind::Text => format!("{ctx}<selection>\n{}\n</selection>", defuse_close_tag(&clip_selection(text))),
         Kind::Image => format!("{ctx}Explain this screenshot region."),
         Kind::Scan => {
             let (w, h) = image.map_or((0, 0), |i| (i.w, i.h));
@@ -160,4 +160,19 @@ pub(super) fn parse_scan(text: &str) -> Option<Vec<ScanRaw>> {
             .take(3)
             .collect(),
     )
+}
+
+/// Selected text must not be able to close the data block and speak as the user:
+/// `</selection` becomes `<\/selection` (case-insensitive). Everything else reaches the model as is.
+fn defuse_close_tag(t: &str) -> String {
+    let lower = t.to_ascii_lowercase(); // ASCII lowercasing keeps byte offsets
+    let mut out = String::with_capacity(t.len());
+    let mut last = 0;
+    for (i, _) in lower.match_indices("</selection") {
+        out.push_str(&t[last..i]);
+        out.push_str("<\\/");
+        last = i + 2;
+    }
+    out.push_str(&t[last..]);
+    out
 }

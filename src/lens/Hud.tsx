@@ -8,14 +8,22 @@ type Pos = "tl" | "tr" | "bl" | "br";
 const INSET = 14;
 const AVOID_PX = 60;
 
-/** rAF tween from the last shown value (0 on mount) to `target`; re-renders only when the rounded value changes. */
+/** Rolls up from 0 once per mount (corners remount on every Lens-On); later updates jump
+ * straight to the value, so 1 Hz telemetry never keeps a rAF loop running while idle. */
 function useTween(target: number, decimals = 0, ms = 400): number {
   const [shown, setShown] = useState(0);
   const cur = useRef(0);
+  const rolled = useRef(false);
   useEffect(() => {
+    const f = 10 ** decimals;
+    if (rolled.current) {
+      cur.current = target;
+      setShown(Math.round(target * f) / f);
+      return;
+    }
+    rolled.current = true;
     const from = cur.current;
     const t0 = performance.now();
-    const f = 10 ** decimals;
     let raf = 0;
     const step = (now: number) => {
       const k = Math.min(1, (now - t0) / ms);

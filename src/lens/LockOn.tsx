@@ -5,7 +5,7 @@ import type { Point, Rect } from "../shared/ipc";
 import { Markdown } from "../shared/Markdown";
 import { body, tldr } from "../shared/tldr";
 import { GlassBg } from "./Glass";
-import { calloutLeader, pathD } from "./geometry";
+import { calloutLeader, pathD, type Placement } from "./geometry";
 import type { LensSession } from "./store";
 
 const ARM = 12;
@@ -42,11 +42,18 @@ export function Leader({ points, delay }: { points: Point[]; delay: number }) {
   );
 }
 
-function Callout({ s, box }: { s: LensSession; box: Rect }) {
+function Callout({ s, p }: { s: LensSession; p: Placement }) {
   const head = tldr(s.text);
   const rest = body(s.text);
+  const box = p.box;
+  // When the leader enters from below (callout above the anchor), pin the callout's bottom edge
+  // to the reserved box so the text sits on the leader end however short the answer is.
+  const fromBelow = p.side !== "right" && p.side !== "left" && box.y < s.anchor.y + s.anchor.h / 2;
+  const pos: CSSProperties = fromBelow
+    ? { left: box.x, width: box.w, bottom: innerHeight - (box.y + box.h) }
+    : { left: box.x, width: box.w, top: box.y };
   return (
-    <div className="callout" data-hover="callout" style={{ left: box.x, top: box.y, width: box.w }}>
+    <div className="callout" data-hover="callout" style={pos}>
       <GlassBg glass={s.glass} />
       <div className="tldr">
         {head}
@@ -72,7 +79,7 @@ export function LockOn({ s }: { s: LensSession }) {
           <Leader points={calloutLeader(s.anchor, s.callout)} delay={120} />
         </svg>
       )}
-      {!s.expanded && <Callout s={s} box={s.callout.box} />}
+      {!s.expanded && <Callout s={s} p={s.callout} />}
     </>
   );
 }

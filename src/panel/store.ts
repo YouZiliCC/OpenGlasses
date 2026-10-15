@@ -62,9 +62,9 @@ function patch(id: string, f: (s: PanelSession) => Partial<PanelSession>) {
 export function onSession(e: SessionEvent) {
   switch (e.type) {
     case "start":
-      clearTimeout(fadeTimer);
+      // A running dismiss fade keeps going: the new session becomes visible only when it
+      // requests the panel (onPanel), so the old panel never flashes the new content.
       set((st) => ({
-        closing: false,
         panel: st.panel?.id === e.id ? st.panel : null,
         session: {
           id: e.id,
@@ -129,7 +129,7 @@ export function onSession(e: SessionEvent) {
       fadeTimer = window.setTimeout(() => {
         const st = get();
         set({
-          closing: false,
+          closing: st.session?.id === e.id ? false : st.closing,
           session: st.session?.id === e.id ? null : st.session,
           panel: st.panel?.id === e.id ? null : st.panel,
         });
@@ -142,7 +142,7 @@ export function onSession(e: SessionEvent) {
 }
 
 export function onPanel(e: PanelEvent) {
-  set({ panel: e });
+  set({ panel: e, closing: false });
 }
 
 export function onSettings(s: Settings) {

@@ -108,6 +108,9 @@ pub fn frontend_ready(app: &AppHandle, label: &str) -> InitState {
             init.hud = Some(st(app).hud.lock().unwrap().clone());
         }
         init.active = crate::ai::snapshot(app).filter(|s| s.lens == label);
+        // A reloaded lens needs to know whether its session's panel is already open.
+        let panel = win(app).panel.lock().unwrap().event.clone();
+        init.panel = panel.filter(|e| init.active.as_ref().is_some_and(|a| a.id == e.id));
     }
     init
 }
@@ -181,7 +184,7 @@ pub fn set_overlays_visible(app: &AppHandle, on: bool) {
         }
     }
     if !on {
-        hide_panel(app, 0);
+        hide_panel(app);
     }
 }
 
@@ -334,28 +337,28 @@ pub fn panel_set_height(app: &AppHandle, id: &str, css_h: f64) {
     });
 }
 
-/// Hide the panel. If the panel is the foreground window and `restore_focus_to != 0`,
-/// SetForegroundWindow(restore_focus_to) first.
-pub fn hide_panel(app: &AppHandle, restore_focus_to: isize) {
-    let mut p = win(app).panel.lock().unwrap();
+/// Hide the panel immediately (SELECT start, glasses off). Focus is handed back to the
+/// source window when its session is dismissed (`hide_panel_after_fade`), not here.
+pub fn hide_panel(app: &AppHandle) {
+    hide_panel_locked(app, &mut win(app).panel.lock().unwrap());
+}
+
+/// Callers hold the panel lock, so a check-then-hide cannot race a new `request_panel`.
+fn hide_panel_locked(app: &AppHandle, p: &mut PanelInfo) {
     p.visible = false;
     p.event = None;
     p.lens = None;
     p.phys = None;
-    main_async(app, move |app| {
-        let Some(h) = hwnd_of(app, PANEL) else { return };
-        unsafe {
-            // Hiding the active window would hand activation to an arbitrary window.
-            if restore_focus_to != 0 && GetForegroundWindow() == h {
-                let _ = SetForegroundWindow(HWND(restore_focus_to as _));
-            }
-            let _ = ShowWindow(h, SW_HIDE);
+    main_async(app, |app| {
+        if let Some(h) = hwnd_of(app, PANEL) {
+            let _ = unsafe { ShowWindow(h, SW_HIDE) };
         }
     });
 }
 
-/// Dismiss path: let the panel's 150 ms CSS fade play, then hide — unless a newer session
-/// took the panel over meanwhile (its request re-places the still-visible window).
+/// Dismiss path: give focus back to the source window now (hiding an active window would hand
+/// activation to an arbitrary one), let the panel's 150 ms CSS fade play, then hide — unless a
+/// newer session took the panel over meanwhile (its request re-places the still-visible window).
 pub(crate) fn hide_panel_after_fade(app: &AppHandle, id: &str, restore_focus_to: isize) {
     {
         let mut p = win(app).panel.lock().unwrap();
@@ -365,11 +368,22 @@ pub(crate) fn hide_panel_after_fade(app: &AppHandle, id: &str, restore_focus_to:
         // Late height reports for the dismissed session are ignored from now on.
         p.event = None;
     }
+    if restore_focus_to != 0 {
+        main_async(app, move |app| {
+            let Some(h) = hwnd_of(app, PANEL) else { return };
+            unsafe {
+                if GetForegroundWindow() == h {
+                    let _ = SetForegroundWindow(HWND(restore_focus_to as _));
+                }
+            }
+        });
+    }
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(150));
-        if win(&app).panel.lock().unwrap().event.is_none() {
-            hide_panel(&app, restore_focus_to);
+        let mut p = win(&app).panel.lock().unwrap();
+        if p.event.is_none() {
+            hide_panel_locked(&app, &mut p);
         }
     });
 }

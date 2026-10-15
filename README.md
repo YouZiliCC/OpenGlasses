@@ -62,7 +62,7 @@ Installers for each commit are produced by GitHub Actions. Open the CI run and d
 ## Privacy
 
 - **Zero telemetry.** Data goes only to the model provider you choose, and only when you press a hotkey.
-- **Nothing runs in the background.** OpenGlasses captures the screen only when you press `Alt+W` or `Alt+E`. Screenshots stay in memory and are never written to disk.
+- **No background capture.** OpenGlasses captures the screen only when you press a hotkey, to make the glass background and for the `Alt+W`/`Alt+E` image, and when it plays the Lens-On animation. Captures stay in memory and are never written to disk. Only the `Alt+W` and `Alt+E` images are sent to the model provider.
 - **Your keys stay local.** API keys are stored in the Windows Credential Manager. The UI can set or clear a key, but it cannot read the key back.
 - **Overlays are hidden from screen capture by default.** People watching a screen share or a recording will not see them. Turn this off in Settings if you want to record a demo.
 - **Clipboard history caveat.** OpenGlasses first reads the selection through UI Automation, which leaves no trace. When an app does not support that, OpenGlasses copies the selection and then restores your clipboard. In that case the copied text appears once in Windows clipboard history (`Win+V`) and in cloud clipboard sync. Windows offers no way to prevent this.
@@ -94,6 +94,6 @@ Installers for each commit are produced by GitHub Actions. Open the CI run and d
 - 呈现风格有四种：锁定标注（默认）、镜片侧栏、字幕带、经典卡片。
 - 另有 Lens-On 对焦动画、四角 HUD 遥测（CPU / 内存 / GPU / 显存 / AI 状态），以及终端绿光主题。
 - 模型使用你自己的 API Key，支持 OpenAI 兼容接口（含 DeepSeek、通义、OpenRouter、Ollama）和 Anthropic Claude。
-- 隐私：零遥测；截图只保存在内存中；API Key 存在 Windows 凭据管理器；叠加层默认不会被录屏捕获。
+- 隐私：零遥测；只在按热键或播放 Lens-On 动画时截屏，截图只保存在内存中，只有 `Alt+W` 和 `Alt+E` 的截图会发给模型；API Key 存在 Windows 凭据管理器；叠加层默认不会被录屏捕获。
 
 设计文档见 [`docs/DESIGN.md`](docs/DESIGN.md)。

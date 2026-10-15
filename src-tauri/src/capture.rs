@@ -157,12 +157,18 @@ pub fn begin_select(app: &AppHandle, lens: &LensInfo) -> Result<(), String> {
     let (img_w, img_h) = shot.img.dimensions();
     let url = put_frame(app, "image/jpeg", jpeg(&shot.img, 85)?);
     let payload = FreezePayload { url: url.clone(), img_w, img_h };
-    *st(app).capture.select.lock().unwrap() = Some(SelectState { lens: lens.label.clone(), shot, url });
     windows::emit_to_window(app, &lens.label, ev::FREEZE, Some(payload));
-    windows::hide_panel(app, 0);
+    windows::hide_panel(app);
     windows::set_lens_interactive(app, &lens.label, true);
     hotkeys::set_escape(app, true);
     telemetry::set_mode(app, HudMode::Select);
+    // Publish last: a concurrent cancel can only take the state after Esc is registered and
+    // the click-through change is queued, so its undo is ordered after them.
+    *st(app).capture.select.lock().unwrap() = Some(SelectState { lens: lens.label.clone(), shot, url });
+    // Glasses taken off (tray) while we were capturing: their cancel may have run too early.
+    if !st(app).glasses_on.load(std::sync::atomic::Ordering::SeqCst) {
+        finish_select(app, "", None);
+    }
     Ok(())
 }
 

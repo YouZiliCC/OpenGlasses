@@ -33,9 +33,12 @@ function Selector({ f }: { f: NonNullable<FreezeEvent> }) {
   };
   const up = (e: PointerEvent) => {
     if (e.button !== 0 || !from || sent) return;
-    setTo(at(e));
+    const p = at(e);
+    setTo(p);
     setSent(true);
-    done(norm(from, at(e)));
+    // Released on another monitor = cancel (never upload a crop the user abandoned).
+    const outside = p.x < 0 || p.y < 0 || p.x >= innerWidth || p.y >= innerHeight;
+    done(outside ? null : norm(from, p));
   };
   const cancel = (e: MouseEvent) => {
     e.preventDefault();
