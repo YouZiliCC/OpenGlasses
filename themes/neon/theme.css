@@ -1,0 +1,1179 @@
+/* Cyber Neon (built-in, DESIGN §10.6). Magenta tube light with a cyan second accent on
+   violet-black glass; condensed uppercase labels; a one-shot glitch (RGB split + slice jumps)
+   when a callout, caption or the panel appears, then everything holds still.
+
+   Boot "neon power-on", 1400 ms at normal speed (every duration is × --og-speed):
+     0–520     the blurred desktop is rebuilt from two tinted copies of f1 (cyan fx1::before,
+               magenta fx2::before) screened onto a near-black backdrop (.og-boot::before): an
+               RGB split jittering sideways in steps; sharp f2 slices (fx3::before) jump in
+               three bursts; vignette + fine scanlines on top (fx3::after)
+     520–690   the picture collapses into a horizontal line at the vertical centre (scaleY .004),
+               the split converging
+     640–760   the neon line (.og-boot::after) ignites, flares at 740 and hands over to
+     760–980   two edge lines (fx1::after, fx2::after) that sweep apart on the top and bottom
+               edge of the sharp frame (f2) opening from the line to full height
+     980–1200  f2 fades into the real desktop; nothing is visible from 1200 on
+     820–1360  HUD corners flicker on in turn (--i)
+   No screenshot: the live desktop behind a violet veil with neon streaks; two dark shutters
+   close into the line, it flares, and they ride the edge lines back out while the veil clears. */
+
+:root {
+  --og-accent: #ff2bd6;
+  --og-accent-dim: #b48dcf;
+  --og-accent-faint: rgba(255, 43, 214, 0.26);
+  --og-accent-2: #19f0ff;
+  --og-text: #f2e8ff;
+  --og-warn: #ffd447;
+  --og-glow: 0 0 5px rgba(255, 43, 214, 0.42), 0 0 14px rgba(25, 240, 255, 0.12);
+  --og-glow-warn: 0 0 6px rgba(255, 212, 71, 0.5);
+  --og-font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+  --og-font-display: "Bahnschrift SemiCondensed", "Bahnschrift", "Nimbus Sans Narrow", "Arial Narrow",
+    "Microsoft YaHei UI", sans-serif;
+  --og-glass-tint: rgba(12, 3, 24, 0.86);
+  --og-panel-bg: rgba(14, 5, 28, 0.94);
+  --og-panel-border: 1px solid rgba(255, 43, 214, 0.55);
+  --og-radius: 0px;
+  --og-scanlines: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 43, 214, 0.035) 0,
+    rgba(255, 43, 214, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  --og-settings-bg: #0c0616;
+
+  /* Theme-private helpers (prefixed with the theme id). */
+  --neon-mono: "Cascadia Mono", "Cascadia Code", "Consolas", "Microsoft YaHei UI", monospace;
+  --neon-glow-c: 0 0 5px rgba(25, 240, 255, 0.4);
+  --neon-halo: 0 0 1px rgba(4, 0, 10, 0.9), 0 0 3px rgba(4, 0, 10, 0.75);
+  --neon-halo-hud: 0 0 1px rgba(4, 0, 10, 0.95), 0 0 2px rgba(4, 0, 10, 0.85), 0 0 4px rgba(4, 0, 10, 0.5);
+  --neon-hair: linear-gradient(90deg, rgba(255, 43, 214, 0.75), rgba(25, 240, 255, 0.4) 62%, rgba(25, 240, 255, 0));
+}
+
+.glow {
+  color: var(--og-accent);
+}
+/* Condensed labels: Bahnschrift's semi-condensed face even where only the base family name
+   resolves (DirectWrite groups the widths under "Bahnschrift"). */
+.hud,
+.tb,
+.toast,
+.sel-size,
+.ph .title,
+.scan-head > :first-child,
+.hist-head,
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md th,
+.og-titlebar-title,
+.set-brand,
+.set-loading,
+.tab,
+.sec h3,
+.btn {
+  font-stretch: semi-condensed;
+}
+/* Streaming carets in magenta (the blink itself stays the base one). */
+.caret::after,
+.live .md > :last-child::after,
+.streaming .md > :last-child::after {
+  color: var(--og-accent);
+  text-shadow: 0 0 6px rgba(255, 43, 214, 0.6);
+}
+.dim {
+  color: var(--og-accent-dim);
+}
+
+/* ======================================================================= *
+ *  Appear glitch: one RGB split + three slice jumps, then still.          *
+ *  og-crt-on moves/clips the box; og-neon-rgb splits the text inside it.  *
+ * ======================================================================= */
+@keyframes og-crt-on {
+  0% { opacity: 0; translate: 0 0; clip-path: inset(47% -40px 47% -40px); }
+  7% { opacity: 1; translate: -7px 0; clip-path: inset(34% -40px 48% -40px); }
+  15% { translate: 9px 0; clip-path: inset(-40px -40px 62% -40px); }
+  23% { translate: -4px 0; clip-path: inset(56% -40px -40px -40px); }
+  31% { translate: 2px 0; clip-path: inset(-40px); opacity: 0.7; }
+  39%, 100% { translate: 0 0; clip-path: inset(-40px); opacity: 1; }
+}
+@keyframes og-neon-rgb {
+  0%, 7% { filter: drop-shadow(-4px 0 0 rgba(25, 240, 255, 0.85)) drop-shadow(4px 0 0 rgba(255, 43, 214, 0.85)); }
+  15% { filter: drop-shadow(3px 0 0 rgba(25, 240, 255, 0.85)) drop-shadow(-5px 0 0 rgba(255, 43, 214, 0.85)); }
+  23% { filter: drop-shadow(-2px 0 0 rgba(25, 240, 255, 0.7)) drop-shadow(2px 0 0 rgba(255, 43, 214, 0.7)); }
+  31% { filter: drop-shadow(-1px 0 0 rgba(25, 240, 255, 0.5)) drop-shadow(1px 0 0 rgba(255, 43, 214, 0.5)); }
+  39%, 100% { filter: none; }
+}
+.crt-on {
+  animation: og-crt-on calc(380ms * var(--og-speed)) steps(1, end);
+}
+.panel.crt-on > .ph,
+.panel.crt-on > .pb,
+.panel.crt-on > .pf {
+  animation: og-neon-rgb calc(380ms * var(--og-speed)) steps(1, end);
+}
+
+/* ======================================================================= *
+ *  LENS                                                                   *
+ * ======================================================================= */
+
+/* ---- Lock-on: magenta brackets, cyan leader, magenta end marker ---- */
+.brackets path {
+  stroke-width: 2;
+  stroke-linecap: square;
+  filter: drop-shadow(0 0 2px rgba(255, 43, 214, 0.9)) drop-shadow(0 0 6px rgba(255, 43, 214, 0.4));
+  animation:
+    og-converge calc(120ms * var(--og-speed)) ease-out both,
+    og-neon-flick calc(200ms * var(--og-speed)) steps(1, end) calc(120ms * var(--og-speed));
+}
+.brackets.warn path {
+  filter: drop-shadow(0 0 2px rgba(255, 212, 71, 0.8)) drop-shadow(0 0 6px rgba(255, 212, 71, 0.35));
+}
+@keyframes og-neon-flick {
+  0% { opacity: 0.35; }
+  25% { opacity: 1; }
+  50% { opacity: 0.55; }
+  75%, 100% { opacity: 1; }
+}
+.leader .line {
+  stroke: var(--og-accent-2);
+  stroke-width: 1.5;
+  /* Dark under-halo first so the cyan holds on white pages, then the neon bloom. */
+  filter: drop-shadow(0 0 1px rgba(8, 0, 18, 0.85)) drop-shadow(0 0 2px rgba(25, 240, 255, 0.75))
+    drop-shadow(0 0 5px rgba(25, 240, 255, 0.3));
+}
+.leader .marker {
+  fill: var(--og-accent);
+  stroke: #ffe1f8;
+  stroke-width: 0.75;
+  filter: drop-shadow(0 0 3px rgba(255, 43, 214, 0.95));
+}
+
+/* ---- Callout on glass: a neon tube on each side (echoing the brackets, so the leader lands
+   next to a lit edge from either side), magenta TL;DR ---- */
+.callout {
+  animation: og-crt-on calc(380ms * var(--og-speed)) steps(1, end) calc(220ms * var(--og-speed)) backwards;
+  color: var(--og-text);
+  text-shadow: var(--neon-halo);
+}
+.callout > :not(.glass) {
+  animation: og-neon-rgb calc(380ms * var(--og-speed)) steps(1, end) calc(220ms * var(--og-speed)) backwards;
+}
+.callout::before,
+.callout::after {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--og-accent), var(--og-accent) 35%, var(--og-accent-2));
+  box-shadow: 0 0 6px rgba(255, 43, 214, 0.75), 0 0 14px rgba(25, 240, 255, 0.2);
+}
+.callout::after {
+  left: auto;
+  right: -9px;
+  background: linear-gradient(to bottom, var(--og-accent-2), var(--og-accent) 65%, var(--og-accent));
+  box-shadow: 0 0 6px rgba(255, 43, 214, 0.6), 0 0 14px rgba(25, 240, 255, 0.25);
+}
+.callout .tldr {
+  color: var(--og-accent);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-shadow: var(--neon-halo);
+}
+.callout .clamp3 {
+  margin-top: 5px;
+}
+
+/* ---- Caption: subtitle on glass with a neon hairline underneath ---- */
+.caption {
+  padding: 5px 14px 7px;
+  animation: og-crt-on calc(380ms * var(--og-speed)) steps(1, end);
+  text-shadow: var(--neon-halo);
+}
+.caption-text {
+  animation: og-neon-rgb calc(380ms * var(--og-speed)) steps(1, end);
+  color: var(--og-text);
+  letter-spacing: 0.01em;
+}
+.caption-text .glow {
+  font-weight: 600;
+  text-shadow: var(--neon-halo), var(--og-glow);
+}
+.caption::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(25, 240, 255, 0), var(--og-accent-2) 18%, var(--og-accent) 50%, var(--og-accent-2) 82%, rgba(25, 240, 255, 0));
+  box-shadow: 0 0 6px rgba(255, 43, 214, 0.6);
+}
+
+/* ---- Scan anchors: cyan neon dot in a thin magenta ring; three sonar pulses, then still ---- */
+.anchor::after {
+  inset: 8.5px;
+  background: radial-gradient(circle, #f0ffff 0 1.2px, var(--og-accent-2) 2.4px);
+  box-shadow:
+    0 0 0 2.5px rgba(8, 0, 18, 0.6),
+    0 0 0 3.5px rgba(255, 43, 214, 0.9),
+    0 0 8px 3px rgba(25, 240, 255, 0.5),
+    0 0 14px 5px rgba(255, 43, 214, 0.22);
+  animation-name: og-neon-dot;
+}
+@keyframes og-neon-dot {
+  50% { scale: 1.3; opacity: 0.65; }
+}
+.anchor::before {
+  content: "";
+  position: absolute;
+  inset: 8.5px;
+  border-radius: 50%;
+  border: 1px solid var(--og-accent-2);
+  box-shadow: 0 0 6px rgba(25, 240, 255, 0.6);
+  opacity: 0;
+  animation: og-neon-sonar calc(1200ms * var(--og-speed)) ease-out 3;
+}
+@keyframes og-neon-sonar {
+  0% { scale: 1; opacity: 0.9; }
+  100% { scale: 3.4; opacity: 0; }
+}
+
+/* ---- Toast: condensed warn chip, a short slice-in (the 1.8 s fade stays fixed) ---- */
+.toast {
+  padding: 3px 10px 3px 9px;
+  font-family: var(--og-font-display);
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 212, 71, 0.35);
+  border-left: 2px solid var(--og-warn);
+  box-shadow: 0 0 10px rgba(255, 212, 71, 0.15), inset 0 0 8px rgba(255, 212, 71, 0.06);
+  animation:
+    og-toast 1.8s linear forwards,
+    og-neon-toast calc(220ms * var(--og-speed)) steps(1, end);
+}
+@keyframes og-neon-toast {
+  0% { translate: -6px 0; clip-path: inset(0 0 55% 0); }
+  30% { translate: 5px 0; clip-path: inset(45% 0 0 0); }
+  60% { translate: -2px 0; clip-path: none; }
+  100% { translate: 0 0; }
+}
+
+/* ---- HUD: cyan telemetry, condensed caps, magenta corner ticks ---- */
+.hud {
+  font-family: var(--og-font-display);
+  font-size: 12.5px;
+  line-height: 1.45;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--og-accent-2);
+  text-shadow: var(--neon-halo-hud), 0 0 5px rgba(25, 240, 255, 0.2);
+}
+.hud .dim {
+  color: #c79be0;
+  text-shadow: var(--neon-halo-hud);
+}
+.hud .breathe {
+  color: var(--og-accent);
+  text-shadow: var(--neon-halo), 0 0 8px rgba(255, 43, 214, 0.6);
+}
+.hud::before {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 0 solid var(--og-accent);
+  filter: drop-shadow(0 0 2px rgba(255, 43, 214, 0.9));
+}
+.hud-tl::before { left: -11px; top: -5px; border-width: 1.5px 0 0 1.5px; }
+.hud-tr::before { right: -11px; top: -5px; border-width: 1.5px 1.5px 0 0; }
+.hud-bl::before { left: -11px; bottom: -5px; border-width: 0 0 1.5px 1.5px; }
+.hud-br::before { right: -11px; bottom: -5px; border-width: 0 1.5px 1.5px 0; }
+
+/* Neon tube ignition: stutter, catch, stutter, then ease onto the corner's own opacity (no 100%
+   keyframe: ends on 0.8 / 0.15). Last corner done at 1360, inside the 1400 ms stage. */
+.og-hud-corner.lit {
+  animation: og-hud-on calc(300ms * var(--og-speed)) steps(1, end) calc((820ms + var(--i) * 80ms) * var(--og-speed)) backwards;
+}
+@keyframes og-hud-on {
+  0% { opacity: 0; translate: 0 0; }
+  12% { opacity: 1; translate: 2px 0; }
+  22% { opacity: 0.1; translate: 0 0; }
+  36% { opacity: 1; }
+  46% { opacity: 0.35; translate: -1px 0; }
+  60% { opacity: 1; translate: 0 0; animation-timing-function: linear; }
+}
+
+/* ---- SELECT: violet dimming, magenta frame with cyan corner ticks ---- */
+.freeze-dim {
+  background: rgba(10, 0, 22, 0.5);
+}
+.sel {
+  outline: 1px solid var(--og-accent);
+  box-shadow: 0 0 10px rgba(255, 43, 214, 0.55), 0 0 0 100vmax rgba(10, 0, 22, 0.5);
+}
+.sel::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  --neon-t: 10px;
+  background:
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left top / var(--neon-t) 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left top / 2px var(--neon-t),
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right top / var(--neon-t) 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right top / 2px var(--neon-t),
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left bottom / var(--neon-t) 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left bottom / 2px var(--neon-t),
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right bottom / var(--neon-t) 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right bottom / 2px var(--neon-t);
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 3px rgba(25, 240, 255, 0.8));
+}
+.sel-size {
+  margin-top: 7px;
+  padding: 1px 8px;
+  font-family: var(--og-font-display);
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--og-accent-2);
+  border-left: 2px solid var(--og-accent);
+  text-shadow: var(--neon-glow-c);
+}
+.sel-size.inside {
+  bottom: 7px;
+  right: 7px;
+}
+
+/* ======================================================================= *
+ *  BOOT: neon power-on                                                    *
+ * ======================================================================= */
+
+/* Every pseudo-element of the stage is a full-screen layer. Stacking (bottom → top):
+   .og-boot::before (backdrop) · f0 f1 f2 · fx1 · fx2 · fx3 · .og-boot::after (the line). */
+.og-boot::before,
+.og-boot::after,
+.og-boot-fx::before,
+.og-boot-fx::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Near-black backdrop: the RGB copies are screened onto it, and it is what the picture
+   collapses into. Opacity only (no full-screen colour repaint on 4K). It drops out at 980,
+   the instant f2 has opened to full height and covers the screen. */
+.og-boot::before {
+  background: rgb(5, 1, 11);
+  opacity: 0;
+  animation: og-neon-backdrop calc(1400ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-neon-backdrop {
+  0%, 70% { opacity: 1; }
+  70.1%, 100% { opacity: 0; }
+}
+
+/* f0/f1 are not shown: the blurred picture is rebuilt from the two tinted copies of f1. */
+.og-boot-f0,
+.og-boot-f1 {
+  animation: none;
+  opacity: 0;
+}
+
+/* RGB split: the f1 picture multiplied to cyan / to magenta and screened onto the black
+   backdrop. Where the copies overlap they add up to the picture (near-white on white pages);
+   where they are offset, pure cyan and magenta fringes. They jitter sideways in steps, then
+   converge to 0 and collapse with the picture (520–690). Offsets in vw so the split scales
+   with the blur on any screen size. */
+.og-boot-fx1::before,
+.og-boot-fx2::before {
+  background-image: linear-gradient(var(--neon-tint), var(--neon-tint)), var(--og-frame-1);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-blend-mode: multiply;
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation:
+    var(--neon-split) calc(720ms * var(--og-speed)) steps(1, end) forwards,
+    og-neon-collapse calc(170ms * var(--og-speed)) cubic-bezier(0.55, 0, 0.25, 1) calc(520ms * var(--og-speed)) both;
+}
+.og-boot-fx1::before { --neon-tint: #19f0ff; --neon-split: og-neon-split-c; }
+.og-boot-fx2::before { --neon-tint: #ff2bd6; --neon-split: og-neon-split-m; }
+@keyframes og-neon-split-c {
+  0% { opacity: 1; translate: -1.4vw 0; }
+  8.3% { translate: -0.8vw 1px; }
+  16.7% { translate: -2.1vw 0; }
+  25% { translate: -1vw -1px; }
+  36.1% { translate: -0.55vw 0; }
+  47.2% { translate: -1.6vw 1px; }
+  58.3% { translate: -0.5vw 0; }
+  68% { translate: -0.25vw 0; }
+  74% { translate: -0.06vw 0; }
+  80%, 99.9% { translate: 0 0; opacity: 1; }
+  100% { translate: 0 0; opacity: 0; }
+}
+@keyframes og-neon-split-m {
+  0% { opacity: 1; translate: 1.4vw 0; }
+  9.7% { translate: 0.9vw -1px; }
+  19.4% { translate: 2.2vw 0; }
+  27.8% { translate: 0.75vw 1px; }
+  38.9% { translate: 0.5vw 0; }
+  50% { translate: 1.65vw -1px; }
+  61.1% { translate: 0.45vw 0; }
+  68% { translate: 0.25vw 0; }
+  74% { translate: 0.06vw 0; }
+  80%, 99.9% { translate: 0 0; opacity: 1; }
+  100% { translate: 0 0; opacity: 0; }
+}
+@keyframes og-neon-collapse {
+  from { scale: 1 1; }
+  to { scale: 1 0.004; }
+}
+
+/* Slice glitch: sharp strips of f2 thrown sideways, three bursts of two bands. The upper band
+   of each burst is tinted magenta, the lower one cyan (hard stop at the vertical centre). */
+.og-boot-fx3::before {
+  background-image:
+    linear-gradient(rgba(255, 43, 214, 0.25) 0 50%, rgba(25, 240, 255, 0.2) 50% 100%),
+    var(--og-frame-2);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  animation: og-neon-slices calc(480ms * var(--og-speed)) steps(1, end) forwards;
+}
+@keyframes og-neon-slices {
+  0% { opacity: 0; }
+  16.7% {
+    opacity: 1;
+    translate: 1.6vw 0;
+    clip-path: polygon(0 18%, 100% 18%, 100% 24%, 0 24%, 0 61%, 100% 61%, 100% 64%, 0 64%);
+  }
+  25% {
+    translate: -0.9vw 0;
+    clip-path: polygon(0 20%, 100% 20%, 100% 27%, 0 27%, 0 63%, 100% 63%, 100% 64.5%, 0 64.5%);
+  }
+  31.3% { opacity: 0; }
+  47.9% {
+    opacity: 1;
+    translate: -2.1vw 0;
+    clip-path: polygon(0 40%, 100% 40%, 100% 47%, 0 47%, 0 82%, 100% 82%, 100% 85%, 0 85%);
+  }
+  56.3% {
+    translate: 3.2vw 0;
+    clip-path: polygon(0 44%, 100% 44%, 100% 45.5%, 0 45.5%, 0 83%, 100% 83%, 100% 84%, 0 84%);
+  }
+  62.5% { opacity: 0; }
+  79.2% {
+    opacity: 1;
+    translate: 1.1vw 0;
+    clip-path: polygon(0 8%, 100% 8%, 100% 12%, 0 12%, 0 52%, 100% 52%, 100% 58%, 0 58%);
+  }
+  87.5% {
+    translate: -0.6vw 0;
+    clip-path: polygon(0 9%, 100% 9%, 100% 10%, 0 10%, 0 55%, 100% 55%, 100% 57%, 0 57%);
+  }
+  93.8%, 100% { opacity: 0; }
+}
+
+/* Vignette + fine dark scanlines over the glitching picture (no colour fill, so white pages
+   stay white); collapses with it. */
+.og-boot-fx3::after {
+  background:
+    repeating-linear-gradient(to bottom, rgba(4, 0, 10, 0.2) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 48%, rgba(6, 0, 16, 0.66) 100%);
+  animation:
+    og-neon-veil calc(1400ms * var(--og-speed)) linear forwards,
+    og-neon-collapse calc(170ms * var(--og-speed)) cubic-bezier(0.55, 0, 0.25, 1) calc(520ms * var(--og-speed)) both;
+}
+@keyframes og-neon-veil {
+  0%, 49.3% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* The neon line: magenta → white-hot → cyan core. Its bloom is the same hue run at lower
+   alpha, shaped by a vertical falloff mask intersected with the end taper (no box-shadow, so
+   the bloom follows the core's colour and fades out with it at both ends). Ignites as the
+   picture collapses (640), flares (740) and hands over to the two edge lines at 760. */
+.og-boot::after {
+  inset: auto 0;
+  top: calc(50% - 48px);
+  height: 96px;
+  background:
+    linear-gradient(90deg, #ff2bd6 16%, #fff4fd 50%, #19f0ff 84%) center / 100% 3px no-repeat,
+    linear-gradient(90deg, rgba(255, 43, 214, 0.75) 16%, rgba(255, 170, 240, 0.55) 50%, rgba(25, 240, 255, 0.7) 84%);
+  mask-image:
+    linear-gradient(90deg, transparent 1%, #000 16%, #000 84%, transparent 99%),
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      rgba(0, 0, 0, 0.08) 22px,
+      rgba(0, 0, 0, 0.3) 37px,
+      rgba(0, 0, 0, 0.9) 45px,
+      #000 46.5px,
+      #000 49.5px,
+      rgba(0, 0, 0, 0.9) 51px,
+      rgba(0, 0, 0, 0.3) 59px,
+      rgba(0, 0, 0, 0.08) 74px,
+      transparent 96px
+    );
+  mask-composite: intersect;
+  opacity: 0;
+  animation: og-neon-line calc(1400ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-neon-line {
+  0%, 45.7% { opacity: 0; scale: 0.25 1; }
+  49.3% { opacity: 1; scale: 1 1; }
+  52.9% { opacity: 1; scale: 1 3.4; }
+  54.3%, 100% { opacity: 0; scale: 1 1; }
+}
+
+/* f2 opens from the line back to full height (760–980) and fades into the real desktop
+   right away (980–1200), so its quarter resolution is never held on screen. */
+.og-boot-f2 {
+  animation:
+    og-neon-f2 calc(1400ms * var(--og-speed)) linear forwards,
+    og-neon-open calc(220ms * var(--og-speed)) cubic-bezier(0.16, 0.85, 0.3, 1) calc(760ms * var(--og-speed)) both;
+}
+@keyframes og-neon-f2 {
+  0%, 54% { opacity: 0; }
+  54.3%, 70% { opacity: 1; animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1); }
+  86%, 100% { opacity: 0; }
+}
+@keyframes og-neon-open {
+  from { scale: 1 0.004; }
+  to { scale: 1 1; }
+}
+
+/* Edge lines riding the top / bottom edge of the opening frame (same easing as og-neon-open);
+   2 px core with a gradient bloom, tapered at both ends like the centre line. */
+.og-boot-fx1::after,
+.og-boot-fx2::after {
+  inset: auto 0;
+  top: calc(50% - 24px);
+  height: 48px;
+  background:
+    linear-gradient(90deg, #ff2bd6 14%, #ffd9f6 50%, #19f0ff 86%) center / 100% 2px no-repeat,
+    linear-gradient(90deg, rgba(255, 43, 214, 0.7) 14%, rgba(255, 170, 240, 0.5) 50%, rgba(25, 240, 255, 0.65) 86%);
+  mask-image:
+    linear-gradient(90deg, transparent 0, #000 14%, #000 86%, transparent 100%),
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      rgba(0, 0, 0, 0.1) 11px,
+      rgba(0, 0, 0, 0.55) 20px,
+      rgba(0, 0, 0, 0.9) 23px,
+      rgba(0, 0, 0, 0.9) 25px,
+      rgba(0, 0, 0, 0.55) 28px,
+      rgba(0, 0, 0, 0.1) 37px,
+      transparent 48px
+    );
+  mask-composite: intersect;
+  opacity: 0;
+  animation:
+    og-neon-edge calc(220ms * var(--og-speed)) cubic-bezier(0.16, 0.85, 0.3, 1) calc(760ms * var(--og-speed)) both,
+    og-neon-edge-a calc(1400ms * var(--og-speed)) linear forwards;
+}
+.og-boot-fx1::after { --neon-to: -50vh; }
+.og-boot-fx2::after { --neon-to: 50vh; }
+@keyframes og-neon-edge {
+  from { translate: 0 0; }
+  to { translate: 0 var(--neon-to); }
+}
+@keyframes og-neon-edge-a {
+  0%, 54% { opacity: 0; }
+  54.3%, 63% { opacity: 1; }
+  72%, 100% { opacity: 0; }
+}
+
+/* ---- No screenshot: the live desktop behind a violet veil with neon streaks. Two dark
+   shutters close in from top and bottom (520–690) so the screen visibly squeezes into the
+   line; at 760 they ride the edge lines back out and the veil clears. ---- */
+.og-boot-noframes::before {
+  background: var(--og-scanlines), rgba(8, 1, 18, 0.5);
+  animation-name: og-neon-backdrop-bare;
+}
+@keyframes og-neon-backdrop-bare {
+  0% { opacity: 0; }
+  8%, 54.3% { opacity: 1; }
+  78%, 100% { opacity: 0; }
+}
+.og-boot-noframes .og-boot-fx1::before,
+.og-boot-noframes .og-boot-fx2::before {
+  background: rgb(5, 1, 11);
+  mix-blend-mode: normal;
+  opacity: 0;
+  animation: var(--neon-shutter) calc(1400ms * var(--og-speed)) linear forwards;
+}
+/* A faint magenta lip on each leading edge: two hairlines closing into the line. */
+.og-boot-noframes .og-boot-fx1::before {
+  bottom: 50%;
+  border-bottom: 1px solid rgba(255, 43, 214, 0.55);
+  --neon-shutter: og-neon-shutter-t;
+}
+.og-boot-noframes .og-boot-fx2::before {
+  top: 50%;
+  border-top: 1px solid rgba(25, 240, 255, 0.5);
+  --neon-shutter: og-neon-shutter-b;
+}
+@keyframes og-neon-shutter-t {
+  0%, 37.1% { opacity: 0.93; translate: 0 -100%; animation-timing-function: cubic-bezier(0.55, 0, 0.25, 1); }
+  49.3%, 54.3% { opacity: 0.93; translate: 0 0; animation-timing-function: cubic-bezier(0.16, 0.85, 0.3, 1); }
+  70% { opacity: 0.93; translate: 0 -100%; }
+  70.1%, 100% { opacity: 0; translate: 0 -100%; }
+}
+@keyframes og-neon-shutter-b {
+  0%, 37.1% { opacity: 0.93; translate: 0 100%; animation-timing-function: cubic-bezier(0.55, 0, 0.25, 1); }
+  49.3%, 54.3% { opacity: 0.93; translate: 0 0; animation-timing-function: cubic-bezier(0.16, 0.85, 0.3, 1); }
+  70% { opacity: 0.93; translate: 0 100%; }
+  70.1%, 100% { opacity: 0; translate: 0 100%; }
+}
+/* Streaks: thin magenta/cyan interference lines inside each band, fading at both ends. */
+.og-boot-noframes .og-boot-fx3::before {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 43, 214, 0.7) 0 1px,
+    transparent 1px 3px,
+    rgba(25, 240, 255, 0.6) 3px 4px,
+    transparent 4px 7px
+  );
+  background-size: auto;
+  background-repeat: repeat;
+  mask-image: linear-gradient(90deg, transparent 3%, #000 28%, #000 72%, transparent 97%);
+}
+/* The vignette fades in instead of popping and fades out under the closing shutters (not
+   scaled: squeezed scanlines would alias into moiré over the live desktop). */
+.og-boot-noframes .og-boot-fx3::after {
+  animation: og-neon-veil-bare calc(1400ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-neon-veil-bare {
+  0% { opacity: 0; }
+  8%, 37.1% { opacity: 1; }
+  47%, 100% { opacity: 0; }
+}
+
+/* ======================================================================= *
+ *  PANEL                                                                  *
+ * ======================================================================= */
+.panel {
+  box-shadow: inset 0 0 0 1px rgba(25, 240, 255, 0.06), inset 0 0 22px rgba(255, 43, 214, 0.1);
+}
+/* Cyan corner ticks over the frame (top-left, bottom-right). */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left top / 12px 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) left top / 2px 12px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right bottom / 12px 2px,
+    linear-gradient(var(--og-accent-2), var(--og-accent-2)) right bottom / 2px 12px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 2px rgba(25, 240, 255, 0.7));
+}
+
+.ph {
+  gap: 8px;
+  padding: 6px 6px 6px 11px;
+  border-bottom: 1px solid transparent;
+  border-image: var(--neon-hair) 1;
+}
+.ph .glyph {
+  color: var(--og-accent-2);
+  text-shadow: var(--neon-glow-c);
+}
+.ph .title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+/* The glow stays on the glyph and the frame; the headline itself is calm magenta. */
+.ph .title.glow {
+  color: var(--og-accent);
+  text-shadow: 0 0 0 transparent;
+}
+.tb {
+  font-family: var(--og-font-display);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  line-height: 19px;
+  text-transform: uppercase;
+  color: var(--og-accent-dim);
+  padding: 0 6px;
+}
+.tb:hover {
+  color: var(--og-accent-2);
+  border-color: rgba(25, 240, 255, 0.45);
+  background: rgba(25, 240, 255, 0.07);
+  text-shadow: var(--neon-glow-c);
+}
+.ph > .tb:last-child {
+  /* Close ×: the condensed caps size makes the glyph tiny; give it a real hit target. */
+  font-size: 15px;
+  letter-spacing: 0;
+  padding: 0 5px;
+}
+.ph > .tb:last-child:hover {
+  color: #fff;
+  border-color: rgba(255, 43, 214, 0.6);
+  background: rgba(255, 43, 214, 0.22);
+  text-shadow: 0 0 6px rgba(255, 43, 214, 0.9);
+}
+.tb.pin.on {
+  border-color: rgba(255, 43, 214, 0.55);
+  filter: grayscale(1) sepia(1) hue-rotate(255deg) saturate(6) brightness(1.1);
+}
+.tb.warn {
+  color: var(--og-warn);
+  border-color: rgba(255, 212, 71, 0.45);
+}
+.tb.warn:hover {
+  background: rgba(255, 212, 71, 0.08);
+  text-shadow: var(--og-glow-warn);
+}
+
+.pb-inner {
+  padding: 9px 12px 11px;
+}
+.src {
+  margin-bottom: 9px;
+  padding-left: 9px;
+  border-left: 2px solid rgba(25, 240, 255, 0.55);
+  font-family: var(--neon-mono);
+  font-size: 11.5px;
+}
+.src:hover {
+  color: var(--og-text);
+}
+.q {
+  margin: 14px 0 7px;
+  padding-top: 9px;
+  border-top: 1px dashed rgba(25, 240, 255, 0.28);
+  color: var(--og-accent-2);
+  text-shadow: 0 0 6px rgba(25, 240, 255, 0.3);
+}
+.err-msg {
+  opacity: 0.85;
+}
+
+/* Scan list */
+.scan li + li {
+  border-top: 1px solid rgba(255, 43, 214, 0.18);
+}
+.scan-head {
+  padding: 6px 0;
+}
+.scan-head > :first-child {
+  font-family: var(--og-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--og-accent-2);
+  opacity: 0.85;
+}
+.scan-head .glow {
+  font-weight: 600;
+}
+.scan-head:hover .glow {
+  text-shadow: var(--og-glow);
+}
+.scan-head:hover {
+  text-shadow: none;
+}
+
+/* Footer / composer */
+.pf {
+  padding: 7px 12px 8px;
+  border-top: 1px solid transparent;
+  border-image: var(--neon-hair) 1;
+}
+.composer .prompt.glow {
+  text-shadow: var(--og-glow);
+}
+.composer textarea::placeholder {
+  color: var(--og-accent-dim);
+  opacity: 0.7;
+}
+
+/* Rail history */
+.hist {
+  border-top: 1px solid var(--og-accent-faint);
+}
+.hist-head {
+  padding: 6px 12px;
+  font-family: var(--og-font-display);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+}
+.hist-head:hover {
+  color: var(--og-accent-2);
+  text-shadow: var(--neon-glow-c);
+}
+.hist-list {
+  padding: 0 12px 8px;
+}
+.hist-item + .hist-item {
+  border-top: 1px dashed rgba(255, 43, 214, 0.2);
+}
+.hist-tldr:hover {
+  color: var(--og-accent);
+  text-shadow: var(--og-glow);
+}
+
+/* ---- Markdown (panel, callout, rail history) ---- */
+.md {
+  color: var(--og-text);
+}
+.md strong {
+  color: #ff8be8;
+  font-weight: 600;
+}
+.md em {
+  color: #e4d2ff;
+}
+.md a {
+  color: var(--og-accent-2);
+  text-decoration: underline;
+  text-decoration-color: rgba(25, 240, 255, 0.45);
+  text-underline-offset: 2px;
+}
+.md a:hover {
+  text-shadow: var(--neon-glow-c);
+}
+.md code {
+  font-family: var(--neon-mono);
+  font-size: 0.92em;
+  color: #8ff8ff;
+  background: rgba(25, 240, 255, 0.08);
+  border: 1px solid rgba(25, 240, 255, 0.24);
+  padding: 0 4px;
+}
+.md pre {
+  padding: 8px 11px;
+  background: rgba(4, 0, 12, 0.55);
+  border: 1px solid rgba(255, 43, 214, 0.2);
+  border-left: 2px solid var(--og-accent);
+  box-shadow: inset 0 0 14px rgba(255, 43, 214, 0.05);
+  line-height: 1.5;
+}
+.md pre code {
+  color: #e9e0ff;
+  font-size: 12px;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-family: var(--og-font-display);
+  font-size: 1.04em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--og-accent);
+  text-shadow: var(--og-glow);
+}
+.md li::marker {
+  color: var(--og-accent);
+}
+.md ol > li::marker {
+  font-family: var(--og-font-display);
+  color: var(--og-accent-2);
+}
+.md blockquote {
+  border-left: 2px solid rgba(25, 240, 255, 0.6);
+  color: var(--og-accent-dim);
+}
+.md hr {
+  height: 1px;
+  border: 0;
+  background: var(--neon-hair);
+}
+.md th,
+.md td {
+  border: 1px solid rgba(255, 43, 214, 0.22);
+  padding: 2px 8px;
+}
+.md th {
+  font-family: var(--og-font-display);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--og-accent-2);
+  background: rgba(255, 43, 214, 0.07);
+}
+.md .katex {
+  color: #bdf9ff;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 43, 214, 0.35);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 43, 214, 0.6);
+}
+
+/* ======================================================================= *
+ *  SETTINGS                                                               *
+ * ======================================================================= */
+.set {
+  background:
+    radial-gradient(120% 70% at 100% 0, rgba(255, 43, 214, 0.08), transparent 60%),
+    radial-gradient(90% 60% at 0 100%, rgba(25, 240, 255, 0.05), transparent 60%);
+}
+.set-loading {
+  font-family: var(--og-font-display);
+  letter-spacing: 0.14em;
+}
+
+.og-titlebar {
+  padding-left: 14px;
+  background: linear-gradient(90deg, rgba(255, 43, 214, 0.07), rgba(255, 43, 214, 0) 70%);
+  border-bottom: 1px solid transparent;
+  border-image: var(--neon-hair) 1;
+}
+.og-titlebar-title {
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: var(--og-accent-2);
+  text-shadow: 0 0 6px rgba(25, 240, 255, 0.35);
+}
+.og-titlebar-title::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  rotate: 45deg;
+  background: var(--og-accent);
+  box-shadow: 0 0 6px rgba(255, 43, 214, 0.9);
+}
+.og-titlebar-btn {
+  color: var(--og-accent-dim);
+  transition: background-color calc(120ms * var(--og-speed)) linear, color calc(120ms * var(--og-speed)) linear;
+}
+.og-titlebar-btn:hover {
+  color: var(--og-accent-2);
+  background: rgba(25, 240, 255, 0.1);
+  text-shadow: var(--neon-glow-c);
+}
+.og-titlebar-close:hover {
+  color: #fff;
+  background: rgba(255, 43, 214, 0.85);
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+.set-tabs {
+  gap: 4px;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid var(--og-accent-faint);
+}
+.set-brand {
+  margin-right: 18px;
+  padding-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+.tab {
+  padding: 6px 12px 7px;
+  font-family: var(--og-font-display);
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 0;
+  transition: color calc(120ms * var(--og-speed)) linear;
+}
+.tab:hover {
+  color: var(--og-accent-2);
+}
+.tab.on {
+  color: var(--og-accent);
+  background: linear-gradient(to top, rgba(255, 43, 214, 0.12), rgba(255, 43, 214, 0) 80%);
+  box-shadow: inset 0 -2px 0 var(--og-accent), 0 4px 10px -4px rgba(255, 43, 214, 0.7);
+  text-shadow: var(--og-glow);
+}
+
+.set-main {
+  padding: 18px 16px 16px;
+}
+.set-bar {
+  border-top: 1px solid var(--og-accent-faint);
+  background: rgba(255, 43, 214, 0.025);
+}
+.set-status {
+  font-size: 12px;
+}
+
+.sec h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--og-accent-2);
+  text-shadow: 0 0 6px rgba(25, 240, 255, 0.3);
+}
+.sec h3::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 2px;
+  background: var(--og-accent);
+  box-shadow: 0 0 5px rgba(255, 43, 214, 0.9);
+}
+.lbl {
+  padding-top: 5px;
+}
+.note {
+  padding: 7px 10px;
+  border-left: 2px solid rgba(25, 240, 255, 0.5);
+  background: rgba(25, 240, 255, 0.04);
+}
+.hint {
+  margin-top: 4px;
+}
+
+/* Form controls: settings window only (theme.css also loads in the panel, whose composer
+   textarea must stay bare). */
+.set input[type="text"],
+.set input[type="password"],
+.set input[type="number"],
+.set select,
+.set textarea {
+  padding: 4px 8px;
+  color: var(--og-text);
+  background-color: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 43, 214, 0.26);
+  transition: border-color calc(120ms * var(--og-speed)) linear, box-shadow calc(120ms * var(--og-speed)) linear;
+}
+.set input[type="text"]:hover,
+.set input[type="password"]:hover,
+.set input[type="number"]:hover,
+.set select:hover,
+.set textarea:hover {
+  border-color: rgba(255, 43, 214, 0.45);
+}
+.set input[type="text"]:focus,
+.set input[type="password"]:focus,
+.set input[type="number"]:focus,
+.set select:focus,
+.set textarea:focus {
+  border-color: var(--og-accent-2);
+  box-shadow: 0 0 0 1px rgba(25, 240, 255, 0.18), 0 0 10px rgba(25, 240, 255, 0.18);
+}
+.set input[readonly] {
+  color: var(--og-accent-dim);
+  background-color: transparent;
+  border-style: dashed;
+}
+.set textarea {
+  font-family: var(--neon-mono);
+  font-size: 12px;
+}
+.set select {
+  appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 42%, var(--og-accent-2) 42% 60%, transparent 60%),
+    linear-gradient(135deg, transparent 42%, var(--og-accent-2) 42% 60%, transparent 60%);
+  background-position: right 16px center, right 10px center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.set select option {
+  color: var(--og-text);
+  background: var(--og-settings-bg);
+}
+.set input[type="checkbox"],
+.set input[type="radio"] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid rgba(255, 43, 214, 0.5);
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition: border-color calc(120ms * var(--og-speed)) linear, box-shadow calc(120ms * var(--og-speed)) linear;
+}
+.set input[type="radio"] {
+  border-radius: 50%;
+}
+/* Inner lamp: a square for checkboxes, a dot for radios. */
+.set input[type="checkbox"]::before,
+.set input[type="radio"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--og-accent);
+  box-shadow: 0 0 5px rgba(255, 43, 214, 0.95);
+  scale: 0;
+  transition: scale calc(120ms * var(--og-speed)) ease-out;
+}
+.set input[type="radio"]::before {
+  border-radius: 50%;
+}
+.set input[type="checkbox"]:hover,
+.set input[type="radio"]:hover {
+  border-color: rgba(255, 43, 214, 0.85);
+}
+.set input[type="checkbox"]:checked,
+.set input[type="radio"]:checked {
+  border-color: var(--og-accent);
+  box-shadow: 0 0 6px rgba(255, 43, 214, 0.45), inset 0 0 4px rgba(255, 43, 214, 0.25);
+}
+.set input[type="checkbox"]:checked::before,
+.set input[type="radio"]:checked::before {
+  scale: 1;
+}
+.set input[type="checkbox"]:focus-visible,
+.set input[type="radio"]:focus-visible {
+  outline: 1px solid var(--og-accent-2);
+  outline-offset: 2px;
+}
+.set input[type="checkbox"]:disabled,
+.set input[type="radio"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn {
+  padding: 3px 14px;
+  font-family: var(--og-font-display);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--og-accent-2);
+  border: 1px solid rgba(25, 240, 255, 0.5);
+  transition: background-color calc(120ms * var(--og-speed)) linear, box-shadow calc(120ms * var(--og-speed)) linear;
+}
+.btn:hover:not(:disabled) {
+  background: rgba(25, 240, 255, 0.1);
+  box-shadow: 0 0 10px rgba(25, 240, 255, 0.25);
+  text-shadow: var(--neon-glow-c);
+}
+.btn.primary {
+  color: #ffd6f6;
+  border-color: var(--og-accent);
+  background: rgba(255, 43, 214, 0.14);
+  box-shadow: 0 0 8px rgba(255, 43, 214, 0.3), inset 0 0 8px rgba(255, 43, 214, 0.12);
+}
+.btn.primary:hover:not(:disabled) {
+  background: rgba(255, 43, 214, 0.26);
+  box-shadow: 0 0 12px rgba(255, 43, 214, 0.5), inset 0 0 8px rgba(255, 43, 214, 0.2);
+  text-shadow: var(--og-glow);
+}
+.btn:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+}
+.opt {
+  padding: 4px 0;
+}

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Holo Blue: arc tick ring that pops at the end of the boot stage. A dark under-stroke keeps it
+       readable over white pages. -->
+  <defs>
+    <path id="ticks" d="M50.00 8.50L50.00 3.00M53.83 6.17L54.10 3.18M57.64 6.67L58.16 3.71M61.39 7.50L62.16 4.60M65.05 8.65L66.07 5.83M68.60 10.12L69.86 7.40M70.75 14.06L73.50 9.30M75.24 13.96L76.96 11.50M78.28 16.29L80.21 14.00M81.11 18.89L83.23 16.77M83.71 21.72L86.00 19.79M86.04 24.76L88.50 23.04M85.94 29.25L90.70 26.50M89.88 31.40L92.60 30.14M91.35 34.95L94.17 33.93M92.50 38.61L95.40 37.84M93.33 42.36L96.29 41.84M93.83 46.17L96.82 45.90M91.50 50.00L97.00 50.00M93.83 53.83L96.82 54.10M93.33 57.64L96.29 58.16M92.50 61.39L95.40 62.16M91.35 65.05L94.17 66.07M89.88 68.60L92.60 69.86M85.94 70.75L90.70 73.50M86.04 75.24L88.50 76.96M83.71 78.28L86.00 80.21M81.11 81.11L83.23 83.23M78.28 83.71L80.21 86.00M75.24 86.04L76.96 88.50M70.75 85.94L73.50 90.70M68.60 89.88L69.86 92.60M65.05 91.35L66.07 94.17M61.39 92.50L62.16 95.40M57.64 93.33L58.16 96.29M53.83 93.83L54.10 96.82M50.00 91.50L50.00 97.00M46.17 93.83L45.90 96.82M42.36 93.33L41.84 96.29M38.61 92.50L37.84 95.40M34.95 91.35L33.93 94.17M31.40 89.88L30.14 92.60M29.25 85.94L26.50 90.70M24.76 86.04L23.04 88.50M21.72 83.71L19.79 86.00M18.89 81.11L16.77 83.23M16.29 78.28L14.00 80.21M13.96 75.24L11.50 76.96M14.06 70.75L9.30 73.50M10.12 68.60L7.40 69.86M8.65 65.05L5.83 66.07M7.50 61.39L4.60 62.16M6.67 57.64L3.71 58.16M6.17 53.83L3.18 54.10M8.50 50.00L3.00 50.00M6.17 46.17L3.18 45.90M6.67 42.36L3.71 41.84M7.50 38.61L4.60 37.84M8.65 34.95L5.83 33.93M10.12 31.40L7.40 30.14M14.06 29.25L9.30 26.50M13.96 24.76L11.50 23.04M16.29 21.72L14.00 19.79M18.89 18.89L16.77 16.77M21.72 16.29L19.79 14.00M24.76 13.96L23.04 11.50M29.25 14.06L26.50 9.30M31.40 10.12L30.14 7.40M34.95 8.65L33.93 5.83M38.61 7.50L37.84 4.60M42.36 6.67L41.84 3.71M46.17 6.17L45.90 3.18"/>
+    <path id="arc" d="M63.00 14.29A38 38 0 0 1 63.00 85.71 M37.00 85.71A38 38 0 0 1 37.00 14.29"/>
+    <path id="inner" d="M82.87 52.88A33 33 0 0 1 17.13 52.88 M17.13 47.12A33 33 0 0 1 82.87 47.12"/>
+    <path id="cross" d="M50 44v3M50 53v3M44 50h3M53 50h3"/>
+  </defs>
+  <g fill="none" stroke="#02101c" stroke-linecap="butt" stroke-opacity=".5">
+    <use xlink:href="#ticks" stroke-width="1.1"/>
+    <circle cx="50" cy="50" r="47.6" stroke-width=".9"/>
+    <use xlink:href="#arc" stroke-width="1.8"/>
+    <use xlink:href="#inner" stroke-width="1"/>
+    <use xlink:href="#cross" stroke-width="1.1"/>
+  </g>
+  <g fill="none" stroke="#5ad8ff" stroke-linecap="butt">
+    <use xlink:href="#arc" stroke-width="2.4" stroke-opacity=".12"/>
+    <use xlink:href="#ticks" stroke-width=".45" stroke-opacity=".85"/>
+    <circle cx="50" cy="50" r="47.6" stroke-width=".3" stroke-opacity=".5"/>
+    <use xlink:href="#arc" stroke-width=".9"/>
+    <use xlink:href="#arc" stroke="#effcff" stroke-width=".3" stroke-opacity=".9"/>
+    <use xlink:href="#inner" stroke-width=".35" stroke-opacity=".6"/>
+    <use xlink:href="#cross" stroke-width=".4" stroke-opacity=".85"/>
+  </g>
+</svg>

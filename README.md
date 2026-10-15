@@ -35,6 +35,20 @@ Other features:
 
 **Supported providers.** Any OpenAI-compatible endpoint works, including OpenAI, DeepSeek, Qwen (DashScope), OpenRouter, Ollama, vLLM and LM Studio. Anthropic Claude is supported natively.
 
+## Themes
+
+Themes are hot-swappable **theme packs**: a folder with `theme.json`, `theme.css` and optional SVG/PNG/font assets. Packs contain CSS and static assets only, never scripts. Three themes are built in:
+
+| Theme | Look | Boot animation |
+|---|---|---|
+| **Terminal Green** (default) | Monochrome phosphor green, scanlines, a CRT flicker | The blurred desktop comes into focus |
+| **Holo Blue** | JARVIS-style ice-blue HUD, chamfered panels, arc tick rings | Putting on glasses: sharp inside the lenses, blurred outside, then the whole screen comes into focus |
+| **Cyber Neon** | Magenta and cyan neon, a one-shot glitch when answers appear | Neon power-on: RGB split, collapse to a line, then the desktop expands back |
+
+Switch themes and the animation speed (Fast / Normal / Slow) under Settings → Appearance. To install a community theme, drop its folder into `%APPDATA%\io.github.youzilicc.openglasses\themes\` (or click **Open themes folder**). Edits to a theme's files apply live, with no restart.
+
+**Making a theme:** read [`docs/THEMES.md`](docs/THEMES.md). You can preview the lens, the panel and the settings windows in any browser on any OS with [`dev/preview/`](dev/preview/README.md), no Windows needed.
+
 ## Status
 
 `v0.1` MVP, Windows 11 only. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design. The original vision is in [`proposal.md`](proposal.md).
@@ -92,7 +106,8 @@ Installers for each commit are produced by GitHub Actions. Open the CI run and d
 
 - 热键：`Alt+Q` 解释选中文字，`Alt+W` 框选截图，`Alt+E` 疑点扫描（实验性），`Ctrl+Alt+G` 戴上或摘下眼镜。
 - 呈现风格有四种：锁定标注（默认）、镜片侧栏、字幕带、经典卡片。
-- 另有 Lens-On 对焦动画、四角 HUD 遥测（CPU / 内存 / GPU / 显存 / AI 状态），以及终端绿光主题。
+- 四角 HUD 遥测：CPU / 内存 / GPU / 显存 / AI 状态。
+- 主题支持热插拔，主题包只含 CSS 和素材。内置三个：终端绿光（模糊到清晰的对焦动画）、全息蓝（戴上眼镜：镜片内清晰、镜片外模糊，最后整屏清晰）、赛博霓虹（霓虹通电）。动画速度可在设置里调整。写主题请看 [`docs/THEMES.md`](docs/THEMES.md)。
 - 模型使用你自己的 API Key，支持 OpenAI 兼容接口（含 DeepSeek、通义、OpenRouter、Ollama）和 Anthropic Claude。
 - 隐私：零遥测；只在按热键或播放 Lens-On 动画时截屏，截图只保存在内存中，只有 `Alt+W` 和 `Alt+E` 的截图会发给模型；API Key 存在 Windows 凭据管理器；叠加层默认不会被录屏捕获。
 

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1000 360" width="1000" height="360">
+  <!-- Holo Blue boot stage: a white-hot copy of the rims and glass for the light sweep (seen only
+       through a moving band). Same viewBox, views and lens path as frame.svg. -->
+  <style>path,use{vector-effect:non-scaling-stroke}</style>
+  <view id="l" viewBox="0 0 500 360"/>
+  <view id="r" viewBox="500 0 500 360"/>
+  <defs>
+    <path id="lens" d="M112 50C222 38 352 38 432 50C458 54 470 72 467 98C462 172 446 250 394 288C350 318 252 326 178 312C110 300 72 262 62 198C54 142 56 94 72 70C82 56 96 52 112 50Z"/>
+    <g id="rims">
+      <use xlink:href="#lens"/>
+      <use xlink:href="#lens" transform="translate(1000 0) scale(-1 1)"/>
+      <path d="M467 84C482 64 518 64 533 84"/>
+    </g>
+  </defs>
+  <!-- light across the lens glass -->
+  <g fill="#e6fbff" fill-opacity=".24">
+    <use xlink:href="#lens"/>
+    <use xlink:href="#lens" transform="translate(1000 0) scale(-1 1)"/>
+  </g>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <use xlink:href="#rims" stroke="#02101c" stroke-width="6" stroke-opacity=".45"/>
+    <use xlink:href="#rims" stroke="#8fe6ff" stroke-width="18" stroke-opacity=".22"/>
+    <use xlink:href="#rims" stroke="#bff1ff" stroke-width="9" stroke-opacity=".4"/>
+    <use xlink:href="#rims" stroke="#e8fbff" stroke-width="4.5" stroke-opacity=".8"/>
+    <use xlink:href="#rims" stroke="#ffffff" stroke-width="2.2"/>
+  </g>
+</svg>

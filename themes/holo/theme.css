@@ -1,0 +1,1199 @@
+/* Holo Blue (built-in). Ice-blue holographic HUD: hairlines, chamfered panels, arc tick rings,
+   condensed DIN type (Bahnschrift) for labels, a faint white bloom. API: docs/THEMES.md.
+
+   Boot, 1600 ms at normal speed: "putting on glasses", from blurry to clear.
+     0–580      the desktop is blurred (f0), tinted and vignetted; a glasses frame drops in from
+                above. Inside its lenses the blur is cut out and focuses f1 → f2 → sharp desktop.
+     580–930    the glasses settle at the centre; a band of light sweeps across them (fx2)
+     930–1340   "put on": each lens zooms about its own centre, exponentially, until the two lens
+                holes cover the screen; the rims (hairlines at every size) cross and fly past the
+                edges, the bridge is swallowed by the lenses. Only the last corners of f0 fade.
+     1040–1580  HUD corners come online in turn (--i); 1160–1580 an arc tick ring pops (fx3)
+     1600       nothing left on screen
+   Alignment: every glasses layer runs the same @keyframes on registered properties (--holo-s,
+   --holo-ty, --holo-z) and derives its mask/background size and position from them, so rims
+   and holes never drift apart. lenses.svg, frame.svg and glint.svg share one viewBox, one lens
+   path and two <view>s (#l, #r): one layer per lens. --holo-zf (per aspect ratio) is the final
+   zoom that covers the screen, portrait monitors included.
+   No screenshot (og-boot-noframes): the same glasses over a dark vignette.
+   Every duration is × --og-speed. */
+
+:root {
+  --og-accent: #5ad8ff;
+  --og-accent-dim: #74aac4;
+  --og-accent-faint: rgba(90, 216, 255, 0.2);
+  --og-accent-2: #c8f2ff; /* scan anchor dots: near-white ice */
+  --og-text: #d7f1fc;
+  --og-warn: #ffb547;
+  --og-glow: 0 0 1px rgba(225, 248, 255, 0.35), 0 0 8px rgba(90, 216, 255, 0.42);
+  --og-glow-warn: 0 0 8px rgba(255, 181, 71, 0.45);
+  /* Reading text (answers, inputs, labels) in Segoe UI Variable, which sits well next to YaHei UI
+     for CJK; the condensed DIN (Bahnschrift) is kept for the HUD, titles, tabs, buttons and
+     small caps labels (the display list below). */
+  --og-font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Ubuntu Sans", "Noto Sans CJK SC",
+    sans-serif;
+  --og-font-display: "Bahnschrift SemiCondensed", "Bahnschrift", "Ubuntu Sans", "Microsoft YaHei UI",
+    "Noto Sans CJK SC", sans-serif;
+  --og-glass-tint: rgba(3, 13, 24, 0.8);
+  --og-panel-bg: rgba(5, 16, 27, 0.93);
+  --og-panel-border: 1px solid rgba(90, 216, 255, 0.22);
+  --og-radius: 0px;
+  --og-scanlines: repeating-linear-gradient(
+    to bottom,
+    rgba(90, 216, 255, 0.035) 0,
+    rgba(90, 216, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  --og-settings-bg: #050c13;
+
+  /* Theme-private. */
+  --holo-mono: "Cascadia Mono", "Consolas", "Ubuntu Sans Mono", "Microsoft YaHei UI", monospace;
+  --holo-hot: #5ad8ff;
+  --holo-edge: rgba(90, 216, 255, 0.34);
+  --holo-white: #effbff;
+  --holo-halo: 0 0 2px rgba(0, 8, 16, 0.95), 0 0 1px rgba(0, 8, 16, 0.9);
+}
+
+/* Condensed display type wherever --og-font-display is used (Bahnschrift SemiCondensed on
+   Windows; variable fallbacks narrow via font-stretch). */
+.hud,
+.og-titlebar-title,
+.set-brand,
+.tab,
+.sec h3,
+.tb,
+.btn,
+.hist-head,
+.scan-head > :first-child,
+.sel-size,
+.toast,
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md th {
+  font-family: var(--og-font-display);
+  font-stretch: 87.5%;
+}
+
+/* Appear effect of callouts, captions and the panel: a quick materialise, no flicker. */
+@keyframes og-crt-on {
+  0% { opacity: 0; transform: translateY(3px); }
+  45% { opacity: 0.85; }
+  100% { opacity: 1; transform: none; }
+}
+.crt-on { animation-duration: calc(220ms * var(--og-speed)); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+
+/* ================================================================================================
+   Chamfer kits
+   ============================================================================================== */
+
+/* Frame: four cut corners, hairline edges, hot ticks after the top-left and bottom-right cuts.
+   Drawn by a pseudo-element so the colours follow the tokens. */
+.panel::after,
+.callout::after,
+.caption::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --holo-k: calc(var(--holo-c) + 2px);
+  --holo-d: calc(var(--holo-c) * 0.7071 + 0.9px);
+  background:
+    linear-gradient(var(--holo-hot), var(--holo-hot)) var(--holo-c) 0 / 28px 1px,
+    linear-gradient(var(--holo-hot), var(--holo-hot)) 0 var(--holo-c) / 1px 12px,
+    linear-gradient(var(--holo-hot), var(--holo-hot)) calc(100% - var(--holo-c)) 100% / 28px 1px,
+    linear-gradient(var(--holo-hot), var(--holo-hot)) 100% calc(100% - var(--holo-c)) / 1px 12px,
+    linear-gradient(135deg, var(--holo-hot) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 0 0 / var(--holo-k) var(--holo-k),
+    linear-gradient(225deg, var(--holo-edge) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 100% 0 / var(--holo-k) var(--holo-k),
+    linear-gradient(315deg, var(--holo-hot) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 100% 100% / var(--holo-k) var(--holo-k),
+    linear-gradient(45deg, var(--holo-edge) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 0 100% / var(--holo-k) var(--holo-k),
+    linear-gradient(var(--holo-edge), var(--holo-edge)) 0 0 / 100% 1px,
+    linear-gradient(var(--holo-edge), var(--holo-edge)) 0 100% / 100% 1px,
+    linear-gradient(var(--holo-edge), var(--holo-edge)) 0 0 / 1px 100%,
+    linear-gradient(var(--holo-edge), var(--holo-edge)) 100% 0 / 1px 100%;
+  background-repeat: no-repeat;
+}
+.panel,
+.panel::after,
+.callout::after,
+.caption::after,
+.callout .glass,
+.caption .glass {
+  clip-path: polygon(
+    var(--holo-c) 0, calc(100% - var(--holo-c)) 0, 100% var(--holo-c), 100% calc(100% - var(--holo-c)),
+    calc(100% - var(--holo-c)) 100%, var(--holo-c) 100%, 0 calc(100% - var(--holo-c)), 0 var(--holo-c)
+  );
+}
+
+/* Small parts: top-left and bottom-right cut, a real 1px border in --holo-edge, the two
+   diagonals drawn by gradients, then the fill (--holo-fill). */
+.toast,
+.sel-size,
+.btn,
+.tb,
+.md pre,
+.set input[type="text"],
+.set input[type="password"],
+.set input[type="number"],
+.set select,
+.set textarea {
+  --holo-c: 6px;
+  --holo-k: calc(var(--holo-c) + 2px);
+  --holo-d: calc(var(--holo-c) * 0.7071 + 0.9px);
+  border: 1px solid var(--holo-edge);
+  border-radius: 0;
+  clip-path: polygon(
+    var(--holo-c) 0, 100% 0, 100% calc(100% - var(--holo-c)),
+    calc(100% - var(--holo-c)) 100%, 0 100%, 0 var(--holo-c)
+  );
+  --holo-bg:
+    linear-gradient(135deg, var(--holo-edge) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 0 0 / var(--holo-k) var(--holo-k) no-repeat border-box,
+    linear-gradient(315deg, var(--holo-edge) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 100% 100% / var(--holo-k) var(--holo-k) no-repeat border-box,
+    var(--holo-fill, transparent);
+  background: var(--holo-bg);
+}
+/* Scrolling or resizable parts keep a square bottom-right corner, so the native resize grip and
+   the end of the horizontal scrollbar are not cut off. */
+.md pre,
+.set textarea {
+  clip-path: polygon(var(--holo-c) 0, 100% 0, 100% 100%, 0 100%, 0 var(--holo-c));
+  --holo-bg:
+    linear-gradient(135deg, var(--holo-edge) calc(var(--holo-d) - 0.5px), transparent calc(var(--holo-d) + 0.5px)) 0 0 / var(--holo-k) var(--holo-k) no-repeat border-box,
+    var(--holo-fill, transparent);
+}
+
+/* ================================================================================================
+   Boot stage
+   ============================================================================================== */
+
+/* The glasses' geometry. Every glasses layer runs og-holo-glasses, so they all read the same
+   values at the same time and the rims never drift off their lens holes:
+     --holo-s   scale while the glasses drop in and rest (1 = resting size)
+     --holo-ty  vertical offset while they drop in
+     --holo-z   "put on" progress 0 → 1: each lens zooms about its own centre, by --holo-zf ^ z */
+@property --holo-s {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@property --holo-z {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --holo-ty {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* Drop in with a small settle, rest (drifting a touch closer), then come on: an exponential zoom
+   (constant speed in depth) that pushes the rims past the screen edges. */
+@keyframes og-holo-glasses {
+  /* Start: the box's bottom edge 2px inside the top of the screen (the lenses themselves are
+     still above it). A composite mask layer lying wholly outside its box is drawn wrapped to the
+     bottom edge by Chromium, so the box must always touch the screen. */
+  0% { --holo-s: 0.78; --holo-z: 0; --holo-ty: calc(2px - 50vh - var(--holo-gw) * 0.1404); animation-timing-function: cubic-bezier(0.2, 0.75, 0.3, 1); }
+  36% { --holo-s: 1; --holo-ty: 1.1vh; animation-timing-function: ease-in-out; }
+  44% { --holo-s: 1; --holo-ty: 0px; animation-timing-function: ease-in-out; }
+  58% { --holo-s: 1.025; --holo-z: 0; --holo-ty: 0px; animation-timing-function: cubic-bezier(0.35, 0, 0.8, 0.8); }
+  84%, 100% { --holo-s: 1.025; --holo-z: 1; --holo-ty: 0px; }
+}
+
+.og-boot {
+  /* Glasses box at rest (viewBox 1000 × 360). */
+  --holo-gw: min(54vw, 96vh);
+  /* Final zoom: enough for the two lenses to cover the whole screen. */
+  --holo-zf: 6.5;
+}
+@media (max-aspect-ratio: 7/5) { .og-boot { --holo-zf: 7; } }
+@media (max-aspect-ratio: 9/8) { .og-boot { --holo-zf: 8.5; } }
+@media (max-aspect-ratio: 4/5) { .og-boot { --holo-zf: 10.5; } }
+@media (max-aspect-ratio: 5/8) { .og-boot { --holo-zf: 13.5; } }
+@media (min-aspect-ratio: 2/1) { .og-boot { --holo-zf: 7.5; } }
+@media (min-aspect-ratio: 3/1) { .og-boot { --holo-zf: 10.5; } }
+
+/* Each half of the glasses (lenses.svg#l / #r, frame.svg#l / #r, glint.svg#l / #r) is its own
+   layer, placed so that its lens centre (viewBox 264,182 and 736,182) stays put while it zooms. */
+.og-boot-frame,
+.og-boot-fx1,
+.og-boot-fx2 {
+  --holo-w0: calc(var(--holo-gw) * var(--holo-s));
+  --holo-w: calc(var(--holo-w0) * pow(var(--holo-zf), var(--holo-z)));
+  --holo-y: calc(50vh + var(--holo-ty) + var(--holo-w0) * 0.002 - var(--holo-w) * 0.182);
+  --holo-xl: calc(50vw - var(--holo-w0) * 0.236 - var(--holo-w) * 0.264);
+  --holo-xr: calc(50vw + var(--holo-w0) * 0.236 - var(--holo-w) * 0.236);
+  --holo-half: calc(var(--holo-w) * 0.5) calc(var(--holo-w) * 0.36);
+}
+
+/* f0: the blurred desktop under a cold tint and a vignette, minus the two lenses. It stays opaque
+   while the lenses grow over it; only the last corners fade. */
+.og-boot-f0 {
+  background-image:
+    url(bridge.svg),
+    radial-gradient(ellipse 75% 75% at 50% 50%, transparent 30%, rgba(0, 6, 13, 0.72) 100%),
+    linear-gradient(rgba(4, 18, 32, 0.42), rgba(4, 18, 32, 0.42)),
+    var(--og-frame-0);
+  /* The bridge keeps the resting geometry; the growing lenses swallow it. */
+  background-size: var(--holo-w0) calc(var(--holo-w0) * 0.36), 100% 100%, 100% 100%, 100% 100%;
+  background-position: calc(50vw - var(--holo-w0) * 0.5) calc(50vh + var(--holo-ty) - var(--holo-w0) * 0.18), 0 0, 0 0, 0 0;
+  background-repeat: no-repeat;
+  opacity: 1;
+  mask-image: linear-gradient(#000, #000), url(lenses.svg#l), url(lenses.svg#r);
+  mask-size: 100% 100%, var(--holo-half), var(--holo-half);
+  mask-position: 0 0, var(--holo-xl) var(--holo-y), var(--holo-xr) var(--holo-y);
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-out, source-over;
+  mask-composite: subtract, add;
+  animation:
+    og-holo-glasses calc(1600ms * var(--og-speed)) linear forwards,
+    og-holo-f0 calc(1600ms * var(--og-speed)) linear forwards;
+}
+/* Layers switch to visibility: hidden once invisible, so the still-moving geometry stops
+   repainting them. */
+@keyframes og-holo-f0 {
+  0%, 80% { opacity: 1; animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  86% { opacity: 0; visibility: visible; }
+  86.5%, 100% { opacity: 0; visibility: hidden; }
+}
+
+/* f1 → f2 → sharp, inside the lenses only, while the glasses arrive. */
+.og-boot-f1,
+.og-boot-f2 {
+  mask-image: url(lenses.svg#l), url(lenses.svg#r);
+  mask-size: var(--holo-half);
+  mask-position: var(--holo-xl) var(--holo-y), var(--holo-xr) var(--holo-y);
+  mask-repeat: no-repeat;
+}
+.og-boot-f1 {
+  animation:
+    og-holo-glasses calc(1600ms * var(--og-speed)) linear forwards,
+    og-holo-f1 calc(1600ms * var(--og-speed)) linear forwards;
+}
+.og-boot-f2 {
+  animation:
+    og-holo-glasses calc(1600ms * var(--og-speed)) linear forwards,
+    og-holo-f2 calc(1600ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-holo-f1 {
+  0%, 22% { opacity: 1; visibility: visible; }
+  22.5%, 100% { opacity: 0; visibility: hidden; }
+}
+@keyframes og-holo-f2 {
+  0%, 12% { opacity: 0; }
+  22%, 26% { opacity: 1; }
+  40% { opacity: 0; visibility: visible; }
+  40.5%, 100% { opacity: 0; visibility: hidden; }
+}
+
+/* fx1: the frame. Its strokes don't scale, so the rims stay hairlines as they fly out. */
+.og-boot-fx1 {
+  background-image: url(frame.svg#l), url(frame.svg#r);
+  background-repeat: no-repeat;
+  background-size: var(--holo-half);
+  background-position: var(--holo-xl) var(--holo-y), var(--holo-xr) var(--holo-y);
+  animation:
+    og-holo-glasses calc(1600ms * var(--og-speed)) linear forwards,
+    og-holo-frame calc(1600ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-holo-frame {
+  0% { opacity: 0.4; }
+  8%, 81% { opacity: 1; }
+  85% { opacity: 0; visibility: visible; }
+  85.5%, 100% { opacity: 0; visibility: hidden; }
+}
+
+/* fx2: a white-hot copy of the rims and glass, seen through a band of light that crosses the
+   resting glasses from left to right (the band travels over the glasses only). */
+.og-boot-fx2 {
+  background-image: url(glint.svg#l), url(glint.svg#r);
+  background-repeat: no-repeat;
+  background-size: var(--holo-half);
+  background-position: var(--holo-xl) var(--holo-y), var(--holo-xr) var(--holo-y);
+  mask-image: linear-gradient(105deg, transparent 45.5%, rgba(0, 0, 0, 0.4) 48%, #000 49.4% 50.6%, rgba(0, 0, 0, 0.4) 52%, transparent 54.5%);
+  mask-size: 200% 100%;
+  mask-repeat: no-repeat;
+  mask-position: 80% 0;
+  opacity: 0;
+  animation:
+    og-holo-glasses calc(1600ms * var(--og-speed)) linear forwards,
+    og-holo-sweep calc(1600ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-holo-sweep {
+  0%, 37.4% { mask-position: 80% 0; opacity: 0; }
+  37.5% { mask-position: 80% 0; opacity: 1; animation-timing-function: cubic-bezier(0.3, 0.1, 0.6, 1); }
+  57.5% { mask-position: 20% 0; opacity: 1; visibility: visible; }
+  58%, 100% { mask-position: 20% 0; opacity: 0; visibility: hidden; }
+}
+
+/* fx3: the arc tick ring (::before) and a split horizon line (::after) pop at the centre. */
+.og-boot-fx3::before,
+.og-boot-fx3::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+}
+.og-boot-fx3::before {
+  width: min(34vmin, 320px);
+  height: min(34vmin, 320px);
+  background: url(ring.svg) center / contain no-repeat;
+  animation: og-holo-ring calc(420ms * var(--og-speed)) cubic-bezier(0.2, 0.7, 0.3, 1) calc(1160ms * var(--og-speed)) both;
+}
+@keyframes og-holo-ring {
+  0% { opacity: 0; transform: scale(0.55) rotate(-50deg); }
+  28% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.06) rotate(0deg); }
+}
+.og-boot-fx3::after {
+  width: min(64vw, 1100px);
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(90, 216, 255, 0.8) 22%,
+    rgba(90, 216, 255, 0.1) 40%,
+    transparent 41% 59%,
+    rgba(90, 216, 255, 0.1) 60%,
+    rgba(90, 216, 255, 0.8) 78%,
+    transparent
+  );
+  /* A dark edge keeps the line visible over white pages (a 1px element: cheap). */
+  filter: drop-shadow(0 0 1px rgba(0, 8, 16, 0.85));
+  animation: og-holo-horizon calc(400ms * var(--og-speed)) cubic-bezier(0.2, 0.7, 0.3, 1) calc(1180ms * var(--og-speed)) both;
+}
+@keyframes og-holo-horizon {
+  0% { opacity: 0; transform: scaleX(0.35); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+
+/* No screenshot: a dark, faintly ruled vignette, the same glasses and the real desktop through
+   the lenses. */
+.og-boot-noframes .og-boot-f0 {
+  background-image:
+    url(bridge.svg),
+    repeating-linear-gradient(to bottom, rgba(90, 216, 255, 0.045) 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse 75% 75% at 50% 50%, rgba(2, 10, 18, 0.7) 20%, rgba(0, 4, 9, 0.93) 100%);
+}
+
+/* HUD corners come online in turn: the bracket locks into its corner, then the text flickers on
+   once. No 100% keyframe: it ends on the corner's own opacity (0.8, or 0.15 near the cursor). */
+.og-hud-corner.lit {
+  animation: og-hud-on calc(300ms * var(--og-speed)) linear calc((1060ms + var(--i) * 80ms) * var(--og-speed)) backwards;
+}
+.og-hud-corner.lit::before {
+  animation: og-holo-lock calc(280ms * var(--og-speed)) cubic-bezier(0.2, 0.8, 0.2, 1) calc((1040ms + var(--i) * 80ms) * var(--og-speed)) backwards;
+}
+@keyframes og-hud-on {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  50% { opacity: 0.35; }
+  68% { opacity: 1; }
+}
+.og-hud-corner.lit::after {
+  animation: og-holo-rail calc(300ms * var(--og-speed)) cubic-bezier(0.3, 0.7, 0.2, 1) calc((1120ms + var(--i) * 80ms) * var(--og-speed)) backwards;
+}
+.hud-tr.lit::after,
+.hud-br.lit::after {
+  --holo-wipe: inset(0 0 0 100%);
+}
+@keyframes og-holo-lock {
+  from { transform: scale(2.6); opacity: 0; }
+}
+@keyframes og-holo-rail {
+  from { clip-path: var(--holo-wipe, inset(0 100% 0 0)); }
+}
+
+/* ================================================================================================
+   Lens
+   ============================================================================================== */
+
+/* ---- HUD corners: framed readouts ----
+   An arc (◜ ◝ ◟ ◞) locks into the screen corner; a hairline runs along the outer edge to a
+   dimmer mirrored arc at the inner end. The smoked plate fades toward the screen centre and is
+   feathered on its inner edge, so it keeps the text legible on white pages without reading as a
+   box. */
+.hud {
+  padding: 3px 13px 5px;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--og-accent);
+  text-shadow: var(--holo-halo), var(--og-glow);
+  background: linear-gradient(var(--holo-plate-dir, 90deg), rgba(2, 10, 19, 0.94), rgba(2, 10, 19, 0.88) calc(100% - 18px), rgba(2, 10, 19, 0));
+  /* A touch above the base 0.8, so the plate reads as smoked glass rather than grey on white
+     pages (near the cursor it still drops to 0.15). */
+  opacity: 0.92;
+  mask-image: linear-gradient(var(--holo-feather-dir, to bottom), #000 calc(100% - 4px), transparent);
+}
+.hud-tr,
+.hud-br {
+  --holo-plate-dir: 270deg;
+}
+.hud-bl,
+.hud-br {
+  --holo-feather-dir: to top;
+}
+.hud .dim {
+  color: #8ec3da;
+}
+.hud::before,
+.hud::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+/* Outer corner: an arc in the screen corner's direction. */
+.hud::before {
+  width: 10px;
+  height: 10px;
+  border: 0 solid var(--og-accent);
+  filter: drop-shadow(0 0 2px rgba(90, 216, 255, 0.6));
+}
+.hud-tl::before { top: 0; left: 0; border-width: 1px 0 0 1px; border-top-left-radius: 10px; transform-origin: 0 0; }
+.hud-tr::before { top: 0; right: 0; border-width: 1px 1px 0 0; border-top-right-radius: 10px; transform-origin: 100% 0; }
+.hud-bl::before { bottom: 0; left: 0; border-width: 0 0 1px 1px; border-bottom-left-radius: 10px; transform-origin: 0 100%; }
+.hud-br::before { bottom: 0; right: 0; border-width: 0 1px 1px 0; border-bottom-right-radius: 10px; transform-origin: 100% 100%; }
+/* Outer edge: a hairline fading toward the screen centre, ending in a small mirrored arc. */
+.hud::after {
+  height: 10px;
+  --holo-arc: transparent 8.6px, rgba(90, 216, 255, 0.5) 9.2px 9.8px, transparent 10.4px;
+}
+.hud-tl::after {
+  top: 0; left: 10px; right: 0;
+  background:
+    linear-gradient(90deg, rgba(90, 216, 255, 0.55), rgba(90, 216, 255, 0.16)) 0 0 / calc(100% - 10px) 1px no-repeat,
+    radial-gradient(circle at 0 100%, var(--holo-arc)) 100% 0 / 10px 10px no-repeat;
+}
+.hud-tr::after {
+  top: 0; left: 0; right: 10px;
+  background:
+    linear-gradient(270deg, rgba(90, 216, 255, 0.55), rgba(90, 216, 255, 0.16)) 100% 0 / calc(100% - 10px) 1px no-repeat,
+    radial-gradient(circle at 100% 100%, var(--holo-arc)) 0 0 / 10px 10px no-repeat;
+}
+.hud-bl::after {
+  bottom: 0; left: 10px; right: 0;
+  background:
+    linear-gradient(90deg, rgba(90, 216, 255, 0.55), rgba(90, 216, 255, 0.16)) 0 100% / calc(100% - 10px) 1px no-repeat,
+    radial-gradient(circle at 0 0, var(--holo-arc)) 100% 100% / 10px 10px no-repeat;
+}
+.hud-br::after {
+  bottom: 0; left: 0; right: 10px;
+  background:
+    linear-gradient(270deg, rgba(90, 216, 255, 0.55), rgba(90, 216, 255, 0.16)) 100% 100% / calc(100% - 10px) 1px no-repeat,
+    radial-gradient(circle at 100% 0, var(--holo-arc)) 0 100% / 10px 10px no-repeat;
+}
+
+/* ---- Lock-on brackets and leader ---- */
+.brackets path {
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  filter: drop-shadow(0 0 1px rgba(0, 10, 20, 0.9)) drop-shadow(0 0 3px rgba(90, 216, 255, 0.55));
+  animation: og-holo-converge calc(170ms * var(--og-speed)) cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+.brackets.warn path {
+  filter: drop-shadow(0 0 1px rgba(20, 8, 0, 0.9)) drop-shadow(0 0 3px rgba(255, 181, 71, 0.55));
+}
+@keyframes og-holo-converge {
+  from { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+}
+.leader {
+  filter: drop-shadow(0 0 1px rgba(0, 10, 20, 0.85)) drop-shadow(0 0 2px rgba(90, 216, 255, 0.5));
+}
+.leader .line {
+  stroke-width: 1;
+}
+.leader .marker {
+  fill: #06141f;
+  stroke: var(--og-accent);
+  stroke-width: 1.2;
+}
+
+/* ---- Callout and caption: chamfered glass with a hairline frame ---- */
+.callout {
+  --holo-c: 9px;
+  padding: 9px 15px 11px;
+  animation-duration: calc(220ms * var(--og-speed));
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.caption {
+  --holo-c: 8px;
+  padding: 7px 20px 8px;
+  animation-duration: calc(220ms * var(--og-speed));
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.callout .glass,
+.caption .glass {
+  inset: 0;
+  mask-image: none;
+}
+/* The frame opens out from the centre as the glass materialises. */
+.callout::after {
+  animation: og-holo-frame-in calc(320ms * var(--og-speed)) cubic-bezier(0.2, 0.7, 0.3, 1) calc(220ms * var(--og-speed)) both;
+}
+.caption::after {
+  animation: og-holo-frame-in calc(320ms * var(--og-speed)) cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.callout .tldr {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--og-accent);
+  text-shadow: var(--holo-halo), var(--og-glow);
+}
+.callout .clamp3 {
+  margin-top: 5px;
+  color: var(--og-text);
+  text-shadow: 0 0 2px rgba(0, 8, 16, 0.6);
+}
+.caption-text {
+  letter-spacing: 0.01em;
+  color: var(--og-text);
+  text-shadow: 0 0 2px rgba(0, 8, 16, 0.6);
+}
+.caption-text .glow {
+  color: var(--og-accent);
+  font-weight: 600;
+}
+
+/* ---- Scan anchors: a lit core inside a split ring ---- */
+.anchor::after {
+  inset: 7px;
+  background: radial-gradient(circle, var(--og-accent-2) 0 2px, rgba(90, 216, 255, 0.35) 2.6px, rgba(90, 216, 255, 0.12) 3.4px);
+  border: 1px solid var(--og-accent);
+  box-shadow: 0 0 6px rgba(90, 216, 255, 0.75), 0 0 1px 1px rgba(0, 10, 20, 0.6);
+}
+.anchor::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: rgba(90, 216, 255, 0.7);
+  border-bottom-color: rgba(90, 216, 255, 0.7);
+  transform: rotate(45deg);
+  animation: og-holo-anchor calc(500ms * var(--og-speed)) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes og-holo-anchor {
+  from { transform: rotate(-90deg) scale(1.8); opacity: 0; }
+}
+
+/* ---- Toast ---- */
+.toast {
+  --holo-c: 5px;
+  --holo-edge: rgba(255, 181, 71, 0.45);
+  --holo-fill: linear-gradient(var(--og-warn), var(--og-warn)) 0 var(--holo-c) / 2px calc(100% - var(--holo-c)) no-repeat, rgb(5, 16, 27);
+  padding: 3px 12px 3px 13px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}
+
+/* ---- SELECT ---- */
+.freeze-dim {
+  background:
+    radial-gradient(ellipse at center, transparent 40%, rgba(0, 6, 12, 0.35) 100%),
+    rgba(2, 10, 18, 0.48);
+}
+.sel {
+  outline: 1px solid rgba(90, 216, 255, 0.5);
+  box-shadow: 0 0 0 100vmax rgba(2, 10, 18, 0.55), 0 0 12px rgba(90, 216, 255, 0.25) inset;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 0 / 16px 2px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 0 / 2px 16px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 100% 0 / 16px 2px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 100% 0 / 2px 16px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 100% / 16px 2px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 100% / 2px 16px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 100% 100% / 16px 2px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 100% 100% / 2px 16px,
+    linear-gradient(rgba(90, 216, 255, 0.04), rgba(90, 216, 255, 0.04));
+  background-repeat: no-repeat;
+}
+.sel-size {
+  --holo-c: 5px;
+  --holo-edge: rgba(90, 216, 255, 0.4);
+  --holo-fill: var(--og-panel-bg);
+  margin-top: 6px;
+  padding: 1px 9px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--og-accent);
+}
+
+/* ================================================================================================
+   Panel
+   ============================================================================================== */
+
+.panel {
+  --holo-c: 12px;
+  border: 0;
+}
+.crt-on::after {
+  animation: og-holo-frame-in calc(320ms * var(--og-speed)) cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes og-holo-frame-in {
+  from { opacity: 0; transform: scaleX(0.94); }
+}
+
+.ph {
+  gap: 9px;
+  padding: 9px 10px 8px 16px;
+  border-bottom: 0;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 16px 100% / 22px 1px no-repeat,
+    linear-gradient(90deg, rgba(90, 216, 255, 0.34), rgba(90, 216, 255, 0.1) 62%, rgba(90, 216, 255, 0.24)) 12px 100% / calc(100% - 24px) 1px no-repeat;
+}
+.ph .glyph {
+  color: var(--og-accent);
+}
+/* ◢ … ◣ ramps at the ends of the header rule, as around the card label of the preview. */
+.ph {
+  position: relative;
+}
+.ph::before,
+.ph::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  pointer-events: none;
+}
+.ph::before {
+  left: 5px;
+  background: var(--og-accent);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.ph::after {
+  right: 5px;
+  background: rgba(90, 216, 255, 0.5);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.ph .title {
+  font-family: var(--og-font);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--og-accent);
+}
+.ph .title.warn {
+  color: var(--og-warn);
+}
+.tb {
+  --holo-c: 4px;
+  --holo-edge: transparent;
+  font-size: 10.5px;
+  line-height: 18px;
+  letter-spacing: 0.14em;
+  padding: 0 6px;
+  color: var(--og-accent-dim);
+}
+.tb:hover {
+  --holo-edge: rgba(90, 216, 255, 0.36);
+  --holo-fill: rgba(90, 216, 255, 0.08);
+  color: var(--og-accent);
+  border-color: var(--holo-edge);
+  background: var(--holo-bg);
+}
+.tb.pin.on {
+  --holo-edge: rgba(90, 216, 255, 0.36);
+  filter: grayscale(1) sepia(1) hue-rotate(160deg) saturate(4) brightness(1.05);
+  border-color: var(--holo-edge);
+}
+.tb.warn {
+  --holo-edge: rgba(255, 181, 71, 0.45);
+  color: var(--og-warn);
+  border-color: var(--holo-edge);
+}
+
+.pb-inner {
+  padding: 11px 16px 13px;
+}
+.src {
+  margin-bottom: 10px;
+  padding: 1px 0 1px 9px;
+  border-left: 1px solid var(--og-accent);
+  font-size: 12px;
+  color: var(--og-accent-dim);
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.07), transparent 60%);
+}
+.ans {
+  color: var(--og-text);
+}
+.q {
+  margin: 14px 0 8px;
+  padding-top: 9px;
+  border-top: 0;
+  font-family: var(--og-font);
+  color: var(--og-accent);
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 0 / 10px 1px no-repeat,
+    linear-gradient(90deg, rgba(90, 216, 255, 0.3), transparent) 14px 0 / calc(100% - 14px) 1px no-repeat;
+}
+.err-msg {
+  opacity: 0.85;
+}
+
+/* Scan list */
+.scan li + li {
+  border-top: 0;
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.22), rgba(90, 216, 255, 0.06)) 0 0 / 100% 1px no-repeat;
+}
+.scan-head {
+  padding: 7px 0;
+}
+.scan-head > :first-child {
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.scan-head .glow {
+  color: var(--og-accent);
+  font-weight: 600;
+}
+.scan-detail {
+  padding: 0 0 10px 5.2ch;
+  color: var(--og-text);
+}
+
+/* Footer and composer */
+.pf {
+  padding: 8px 16px 10px;
+  border-top: 0;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) calc(100% - 16px) 0 / 22px 1px no-repeat,
+    linear-gradient(270deg, rgba(90, 216, 255, 0.28), rgba(90, 216, 255, 0.12) 70%, transparent) 0 0 / 100% 1px no-repeat;
+}
+.composer {
+  gap: 8px;
+}
+.composer .prompt {
+  color: var(--og-accent);
+}
+.composer textarea {
+  color: var(--og-text);
+}
+.composer textarea::placeholder {
+  color: var(--og-accent-dim);
+  opacity: 0.75;
+  letter-spacing: 0.02em;
+}
+
+/* Rail history */
+.hist {
+  border-top: 0;
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.28), transparent) 0 0 / 100% 1px no-repeat;
+}
+.hist-head {
+  padding: 7px 16px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+}
+.hist-list {
+  padding: 0 16px 10px;
+}
+.hist-item + .hist-item {
+  border-top: 0;
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.18), transparent) 0 0 / 100% 1px no-repeat;
+}
+.hist-tldr {
+  padding: 5px 0;
+}
+
+/* ---- Markdown ---- */
+.md strong {
+  color: var(--holo-white);
+  font-weight: 600;
+}
+.md em {
+  color: #a9e6fb;
+}
+.md a {
+  color: var(--og-accent);
+  text-decoration: underline 1px solid rgba(90, 216, 255, 0.45);
+  text-underline-offset: 2px;
+}
+.md code {
+  font-family: var(--holo-mono);
+  font-size: 0.92em;
+  color: #bdeeff;
+  background: rgba(90, 216, 255, 0.08);
+  border: 1px solid rgba(90, 216, 255, 0.16);
+  padding: 0 4px;
+}
+.md pre {
+  --holo-c: 7px;
+  --holo-edge: rgba(90, 216, 255, 0.2);
+  --holo-fill:
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 0 / 1px 100% no-repeat,
+    rgba(0, 7, 13, 0.55);
+  margin: 0.6em 0;
+  padding: 8px 12px;
+  line-height: 1.5;
+}
+.md pre code {
+  color: #cdeffc;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.8em 0 0.35em;
+  font-size: 0.92em;
+  letter-spacing: 0.14em;
+  color: var(--og-accent);
+}
+.md h1::before,
+.md h2::before,
+.md h3::before,
+.md h4::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: 0.1em;
+  background: var(--og-accent);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.md ul,
+.md ol {
+  padding-left: 1.5em;
+}
+.md li::marker {
+  color: var(--og-accent);
+  font-family: var(--og-font-display);
+  font-variant-numeric: tabular-nums;
+}
+.md ul > li::marker {
+  content: "▸  ";
+  font-size: 0.8em;
+}
+.md blockquote {
+  padding-left: 10px;
+  border-left: 1px solid var(--og-accent-dim);
+  color: #9fcbdf;
+}
+.md table {
+  border-collapse: collapse;
+}
+.md th {
+  font-weight: normal;
+  font-size: 0.86em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--og-accent);
+  border: 0;
+  border-bottom: 1px solid rgba(90, 216, 255, 0.5);
+}
+.md td {
+  border: 0;
+  border-bottom: 1px solid rgba(90, 216, 255, 0.14);
+}
+.md th,
+.md td {
+  padding: 3px 10px 3px 0;
+}
+.md hr {
+  height: 1px;
+  border: 0;
+  margin: 0.8em 0;
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.5), transparent);
+}
+.md .katex {
+  color: #e2f6ff;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: rgba(90, 216, 255, 0.22); }
+::-webkit-scrollbar-thumb:hover { background: rgba(90, 216, 255, 0.45); }
+
+/* ================================================================================================
+   Settings
+   ============================================================================================== */
+
+.set {
+  position: relative;
+  background:
+    radial-gradient(900px 420px at 0 0, rgba(90, 216, 255, 0.06), transparent 70%),
+    linear-gradient(rgba(90, 216, 255, 0.025) 1px, transparent 1px) 0 0 / 100% 24px,
+    linear-gradient(90deg, rgba(90, 216, 255, 0.025) 1px, transparent 1px) 0 0 / 24px 100%,
+    var(--og-settings-bg);
+}
+
+/* The window can't be chamfered (it is opaque), so its corners carry the panel's marks: hot
+   ticks along the edges after the top-left and bottom-right corners and a 45° hairline across
+   each of those corners. */
+.set::before,
+.set::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 11px 0 / 28px 1px,
+    linear-gradient(var(--og-accent), var(--og-accent)) 0 11px / 1px 14px,
+    linear-gradient(135deg, transparent 6.6px, var(--og-accent) 7.2px 7.8px, transparent 8.4px) 0 0 / 12px 12px;
+  background-repeat: no-repeat;
+}
+.set::before {
+  top: 0;
+  left: 0;
+}
+.set::after {
+  right: 0;
+  bottom: 0;
+  transform: rotate(180deg);
+}
+
+/* Title bar */
+.og-titlebar {
+  padding-left: 16px;
+  border-bottom: 0;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 16px 100% / 32px 1px no-repeat,
+    linear-gradient(90deg, rgba(90, 216, 255, 0.3), rgba(90, 216, 255, 0.12) 60%, rgba(90, 216, 255, 0.06)) 0 100% / 100% 1px no-repeat,
+    linear-gradient(rgba(90, 216, 255, 0.05), transparent);
+}
+.og-titlebar-title {
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--og-accent-dim);
+}
+.og-titlebar-title::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: var(--og-accent);
+  box-shadow: 0 0 6px rgba(90, 216, 255, 0.7);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.og-titlebar-btn {
+  width: 44px;
+  font-size: 11px;
+  color: var(--og-accent-dim);
+  transition: background-color calc(120ms * var(--og-speed)) linear, color calc(120ms * var(--og-speed)) linear;
+}
+.og-titlebar-btn:hover {
+  color: var(--og-accent);
+  background: rgba(90, 216, 255, 0.1);
+}
+.og-titlebar-close:hover {
+  color: #ffe2b8;
+  background: rgba(255, 120, 71, 0.22);
+  text-shadow: var(--og-glow-warn);
+}
+
+/* Tabs */
+.set-tabs {
+  gap: 4px;
+  padding: 12px 18px 0;
+  border-bottom: 1px solid var(--og-accent-faint);
+}
+.set-brand {
+  margin-right: 22px;
+  padding-bottom: 8px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--og-accent);
+}
+.tab {
+  padding: 6px 14px 7px;
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border: 0;
+  transition: color calc(120ms * var(--og-speed)) linear;
+}
+.tab.on {
+  color: var(--og-accent);
+  border: 0;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) 50% 100% / calc(100% - 12px) 2px no-repeat,
+    linear-gradient(to top, rgba(90, 216, 255, 0.12), transparent 80%);
+  box-shadow: 0 6px 10px -8px rgba(90, 216, 255, 0.8);
+}
+
+/* Content */
+.set-main {
+  padding: 18px 20px;
+}
+.sec {
+  margin-bottom: 22px;
+}
+.sec h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--og-accent);
+}
+.sec h3::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.3), transparent);
+}
+.field {
+  gap: 4px 14px;
+  margin-bottom: 13px;
+}
+.lbl {
+  padding-top: 5px;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: #8fbfd6;
+}
+.hint {
+  margin-top: 4px;
+  color: #6f9db3;
+}
+.note {
+  padding: 7px 12px;
+  border-left: 1px solid var(--og-accent);
+  background: linear-gradient(90deg, rgba(90, 216, 255, 0.07), transparent 70%);
+}
+
+/* Inputs */
+.set input[type="text"],
+.set input[type="password"],
+.set input[type="number"],
+.set select,
+.set textarea {
+  --holo-edge: rgba(90, 216, 255, 0.24);
+  --holo-fill: rgba(90, 216, 255, 0.04);
+  padding: 4px 8px;
+  color: var(--og-text);
+  transition: border-color calc(120ms * var(--og-speed)) linear;
+}
+.set input:hover,
+.set select:hover,
+.set textarea:hover {
+  --holo-edge: rgba(90, 216, 255, 0.4);
+}
+.set input:focus,
+.set select:focus,
+.set textarea:focus {
+  --holo-edge: rgba(90, 216, 255, 0.75);
+  --holo-fill: rgba(90, 216, 255, 0.08);
+}
+.set input[readonly] {
+  --holo-edge: rgba(90, 216, 255, 0.14);
+  --holo-fill: transparent;
+  color: var(--og-accent-dim);
+}
+.set textarea {
+  font-family: var(--holo-mono);
+  font-size: 12px;
+}
+.set select {
+  appearance: none;
+  padding-right: 28px;
+  --holo-fill: url(chevron.svg) calc(100% - 10px) 50% / 9px 6px no-repeat, rgba(90, 216, 255, 0.04);
+}
+.set select:focus {
+  --holo-fill: url(chevron.svg) calc(100% - 10px) 50% / 9px 6px no-repeat, rgba(90, 216, 255, 0.08);
+}
+select option {
+  color: var(--og-text);
+  background: #08141f;
+}
+
+/* Checkbox and radio: a hairline square / ring with a lit core. */
+.set input[type="checkbox"],
+.set input[type="radio"] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 13px;
+  height: 13px;
+  border: 1px solid rgba(90, 216, 255, 0.5);
+  background: rgba(90, 216, 255, 0.04);
+  cursor: pointer;
+}
+.set input[type="radio"] {
+  border-radius: 50%;
+}
+.set input[type="checkbox"]::before,
+.set input[type="radio"]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  background: var(--og-accent);
+  box-shadow: 0 0 6px rgba(90, 216, 255, 0.8);
+  transform: scale(0);
+  transition: transform calc(120ms * var(--og-speed)) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.set input[type="radio"]::before {
+  border-radius: 50%;
+}
+.set input:checked::before {
+  transform: scale(1);
+}
+.set input[type="checkbox"]:checked,
+.set input[type="radio"]:checked {
+  border-color: var(--og-accent);
+}
+.set input[type="checkbox"]:disabled,
+.set input[type="radio"]:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.opt {
+  padding: 4px 0;
+}
+
+/* Buttons */
+.btn {
+  --holo-edge: rgba(90, 216, 255, 0.45);
+  --holo-fill: transparent;
+  padding: 3px 14px;
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--og-accent);
+  transition: background-color calc(120ms * var(--og-speed)) linear;
+}
+.btn:hover:not(:disabled) {
+  --holo-fill: rgba(90, 216, 255, 0.12);
+  --holo-edge: rgba(90, 216, 255, 0.75);
+  background: var(--holo-bg);
+  text-shadow: var(--og-glow);
+}
+.btn.primary {
+  --holo-edge: var(--og-accent);
+  --holo-fill: rgba(90, 216, 255, 0.14);
+  color: var(--holo-white);
+  text-shadow: var(--og-glow);
+}
+.btn.primary:hover:not(:disabled) {
+  --holo-fill: rgba(90, 216, 255, 0.24);
+  --holo-edge: var(--og-accent);
+}
+.btn:disabled {
+  opacity: 0.38;
+}
+
+/* Bottom bar */
+.set-bar {
+  gap: 10px;
+  padding: 11px 20px;
+  border-top: 0;
+  background:
+    linear-gradient(var(--og-accent), var(--og-accent)) calc(100% - 20px) 0 / 32px 1px no-repeat,
+    linear-gradient(270deg, rgba(90, 216, 255, 0.3), rgba(90, 216, 255, 0.1) 60%, rgba(90, 216, 255, 0.06)) 0 0 / 100% 1px no-repeat,
+    rgba(3, 9, 15, 0.6);
+}
+.set-status {
+  letter-spacing: 0.04em;
+}

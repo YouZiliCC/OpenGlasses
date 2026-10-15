@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1000 360" width="1000" height="360">
+  <!-- Holo Blue boot stage: the glasses frame (rims, hinges, temples, brow ticks, glass sheen;
+       the bridge is bridge.svg). Same viewBox, views and lens path as lenses.svg, so each rim sits
+       exactly on its lens hole at every size. Strokes do not scale: the lines stay thin while the
+       frame zooms. -->
+  <style>path,use{vector-effect:non-scaling-stroke}</style>
+  <view id="l" viewBox="0 0 500 360"/>
+  <view id="r" viewBox="500 0 500 360"/>
+  <defs>
+    <path id="lens" d="M112 50C222 38 352 38 432 50C458 54 470 72 467 98C462 172 446 250 394 288C350 318 252 326 178 312C110 300 72 262 62 198C54 142 56 94 72 70C82 56 96 52 112 50Z"/>
+    <path id="inner" d="M112 50C222 38 352 38 432 50C458 54 470 72 467 98C462 172 446 250 394 288C350 318 252 326 178 312C110 300 72 262 62 198C54 142 56 94 72 70C82 56 96 52 112 50Z" transform="translate(264 182) scale(.955) translate(-264 -182)"/>
+    <path id="arm" d="M70 63L55 65L53 85L61 89M54 75L18 71.5"/>
+    <path id="ticks" d="M204 25v6M224 25v6M244 25v6M264 17v14M284 25v6M304 25v6M324 25v6"/>
+    <g id="half">
+      <use xlink:href="#lens"/>
+      <use xlink:href="#arm"/>
+    </g>
+    <g id="rims">
+      <use xlink:href="#half"/>
+      <use xlink:href="#half" transform="translate(1000 0) scale(-1 1)"/>
+    </g>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d8f6ff" stop-opacity=".14"/>
+      <stop offset=".32" stop-color="#d8f6ff" stop-opacity=".035"/>
+      <stop offset=".55" stop-color="#5ad8ff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#5ad8ff" stop-opacity=".06"/>
+    </linearGradient>
+  </defs>
+  <!-- glass sheen and the hinge blocks -->
+  <g fill="url(#sheen)">
+    <use xlink:href="#lens"/>
+    <use xlink:href="#lens" transform="translate(1000 0) scale(-1 1)"/>
+  </g>
+  <g fill="#5ad8ff" fill-opacity=".3">
+    <path d="M70 63L55 65L53 85L61 89Z"/>
+    <path d="M70 63L55 65L53 85L61 89Z" transform="translate(1000 0) scale(-1 1)"/>
+  </g>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <!-- dark under-stroke: keeps the rim defined over white pages -->
+    <use xlink:href="#rims" stroke="#02101c" stroke-width="4.4" stroke-opacity=".32"/>
+    <!-- bloom -->
+    <use xlink:href="#rims" stroke="#5ad8ff" stroke-width="18" stroke-opacity=".045"/>
+    <use xlink:href="#rims" stroke="#5ad8ff" stroke-width="9" stroke-opacity=".09"/>
+    <use xlink:href="#rims" stroke="#5ad8ff" stroke-width="4.4" stroke-opacity=".26"/>
+    <!-- rim -->
+    <use xlink:href="#rims" stroke="#5ad8ff" stroke-width="2"/>
+    <use xlink:href="#rims" stroke="#effcff" stroke-width=".8" stroke-opacity=".85"/>
+    <!-- inner hairline and brow ticks -->
+    <g stroke="#5ad8ff" stroke-width="1" stroke-opacity=".4">
+      <use xlink:href="#inner"/>
+      <use xlink:href="#inner" transform="translate(1000 0) scale(-1 1)"/>
+      <use xlink:href="#ticks"/>
+      <use xlink:href="#ticks" transform="translate(1000 0) scale(-1 1)"/>
+    </g>
+  </g>
+</svg>

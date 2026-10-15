@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" height="360">
+  <!-- Holo Blue boot stage: the bridge of the glasses, drawn on the blurred layer (f0) so the lens
+       holes swallow it as the lenses grow over the centre. Same viewBox and strokes as frame.svg. -->
+  <style>path{vector-effect:non-scaling-stroke}</style>
+  <g fill="none" stroke-linecap="round">
+    <path d="M467 84C482 64 518 64 533 84" stroke="#02101c" stroke-width="4.4" stroke-opacity=".32"/>
+    <path d="M467 84C482 64 518 64 533 84" stroke="#5ad8ff" stroke-width="18" stroke-opacity=".045"/>
+    <path d="M467 84C482 64 518 64 533 84" stroke="#5ad8ff" stroke-width="9" stroke-opacity=".09"/>
+    <path d="M467 84C482 64 518 64 533 84" stroke="#5ad8ff" stroke-width="4.4" stroke-opacity=".26"/>
+    <path d="M467 84C482 64 518 64 533 84" stroke="#5ad8ff" stroke-width="2"/>
+    <path d="M467 84C482 64 518 64 533 84" stroke="#effcff" stroke-width=".8" stroke-opacity=".85"/>
+  </g>
+</svg>
