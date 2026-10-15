@@ -101,6 +101,14 @@ pub enum PanelMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnimSpeed {
+    Fast,
+    Normal,
+    Slow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HudMode {
     Standby,
@@ -150,6 +158,9 @@ pub struct Settings {
     pub proxy: Option<String>,
     pub max_tokens: u32,
     pub exclude_from_capture: bool,
+    /// Theme pack id (folder name); unknown ids fall back to "terminal" in the frontend.
+    pub theme: String,
+    pub anim_speed: AnimSpeed,
 }
 
 // ---------------------------------------------------------------- HUD
@@ -358,6 +369,26 @@ pub struct VisibilityEvent {
     pub on: bool,
 }
 
+/// A discovered theme pack (DESIGN §10.3).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThemeInfo {
+    pub id: String,
+    pub name: String,
+    pub author: String,
+    pub version: String,
+    pub description: String,
+    pub boot_ms: u32,
+    pub builtin: bool,
+    pub css_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ThemesEvent {
+    pub themes: Vec<ThemeInfo>,
+    pub rev: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveSettingsResult {
@@ -376,6 +407,7 @@ pub mod ev {
     pub const PANEL: &str = "og://panel";
     pub const SETTINGS: &str = "og://settings";
     pub const VISIBILITY: &str = "og://visibility";
+    pub const THEMES: &str = "og://themes";
 }
 
 // ---------------------------------------------------------------- Rust-internal shared types

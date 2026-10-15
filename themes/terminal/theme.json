@@ -1,0 +1,2 @@
+{ "name": "Terminal Green", "author": "OpenGlasses", "version": "1.0.0",
+  "description": "Monochrome phosphor green, scanlines and a CRT flicker. Boot: blur-to-focus.", "bootMs": 1200 }

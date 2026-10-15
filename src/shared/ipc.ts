@@ -13,6 +13,7 @@ export type ProviderKind = "openai" | "anthropic";
 export type BboxFormat = "pixel" | "norm1000";
 export type GlassMode = "snapshot" | "acrylic";
 export type PanelMode = "card" | "rail";
+export type AnimSpeed = "fast" | "normal" | "slow";
 
 export interface Provider {
   id: string;
@@ -49,6 +50,9 @@ export interface Settings {
   proxy: string | null;
   maxTokens: number;
   excludeFromCapture: boolean;
+  /** Theme pack id (folder name), e.g. "terminal", "holo", "neon" (DESIGN §10). */
+  theme: string;
+  animSpeed: AnimSpeed;
 }
 
 export type HudMode = "STANDBY" | "GRABBING" | "SELECT" | "THINKING" | "STREAM" | "SCAN";
@@ -167,6 +171,27 @@ export interface InitState {
   glassesOn: boolean;
 }
 
+/** A discovered theme pack (DESIGN §10.3). */
+export interface ThemeInfo {
+  id: string;
+  name: string;
+  author: string;
+  version: string;
+  description: string;
+  /** Boot animation length at normal speed, ms (clamped 300–4000). */
+  bootMs: number;
+  /** Shipped with the app (false = user theme folder; overrides a built-in with the same id). */
+  builtin: boolean;
+  /** http://ogtheme.localhost/<id>/theme.css?v=<rev> */
+  cssUrl: string;
+}
+
+export interface ThemesEvent {
+  themes: ThemeInfo[];
+  /** Increments whenever any theme file changes (hot reload). */
+  rev: number;
+}
+
 export type CursorEvent = { x: number; y: number; inPanel: boolean } | null;
 export interface ToastEvent {
   text: string;
@@ -193,6 +218,7 @@ export interface EventMap {
   "og://panel": PanelEvent;
   "og://settings": Settings;
   "og://visibility": VisibilityEvent;
+  "og://themes": ThemesEvent;
 }
 
 /** Command name → [args, return type]. Args are camelCase (Tauri converts to snake_case). */
@@ -212,7 +238,13 @@ export interface CommandMap {
   pin_session: [{ id: string; pinned: boolean }, void];
   open_settings: [Record<string, never>, void];
   get_history: [Record<string, never>, HistoryEntry[]];
+  list_themes: [Record<string, never>, ThemesEvent];
+  reload_themes: [Record<string, never>, ThemesEvent];
+  open_themes_folder: [Record<string, never>, void];
 }
+
+/** --og-speed multiplier per AnimSpeed (DESIGN §10.4). */
+export const SPEED_FACTOR: Record<AnimSpeed, number> = { fast: 0.6, normal: 1, slow: 1.6 };
 
 /** Layout constants shared by lens geometry and the panel. */
 export const PANEL_W = 420;

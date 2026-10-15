@@ -90,6 +90,8 @@ pub fn defaults() -> Settings {
         proxy: None,
         max_tokens: 2000,
         exclude_from_capture: true,
+        theme: "terminal".into(),
+        anim_speed: AnimSpeed::Normal,
     }
 }
 

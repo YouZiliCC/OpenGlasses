@@ -10,6 +10,7 @@ mod hotkeys;
 mod settings;
 mod state;
 mod telemetry;
+mod themes;
 mod tray;
 mod types;
 mod windows;
@@ -27,6 +28,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .register_asynchronous_uri_scheme_protocol("ogframe", capture::serve)
+        .register_asynchronous_uri_scheme_protocol("ogtheme", themes::serve)
         .invoke_handler(tauri::generate_handler![
             commands::frontend_ready,
             commands::get_settings,
@@ -43,6 +45,9 @@ pub fn run() {
             commands::pin_session,
             commands::open_settings,
             commands::get_history,
+            commands::list_themes,
+            commands::reload_themes,
+            commands::open_themes_folder,
         ])
         .on_window_event(|w, e| {
             // Overlays live for the whole run: Alt+F4 in the (focused) panel only closes the
@@ -65,6 +70,7 @@ pub fn run() {
             tray::setup(&handle)?;
             telemetry::spawn(handle.clone());
             cursor::spawn(handle.clone());
+            themes::spawn_watcher(handle.clone());
             actions::startup(&handle);
             Ok(())
         })

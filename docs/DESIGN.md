@@ -19,7 +19,7 @@
 | 触发 | 只用全局热键。不装全局鼠标钩子，也不做「划词即触发」 |
 | AI 协议 | OpenAI 兼容 + Anthropic 原生，**每种协议一个独立文件**，不做插件框架 |
 | 呈现风格 | 4 种，可切换：**锁定标注 Lock-on（默认）**、镜片侧栏 Lens Rail、字幕带 Caption、经典卡片 Card |
-| 视觉主题 | 终端绿光；背景用**快照玻璃**，另有原生 Acrylic 实验开关，首次联调时二选一 |
+| 视觉主题 | **运行时主题包**（纯 CSS + 静态资源，可热插拔、热重载，见 §10）。内置终端绿光（默认）、全息蓝、赛博霓虹；背景用**快照玻璃**，另有原生 Acrylic 实验开关 |
 | MVP 范围 | 解释（文字和截图）、Lens-On 动画、四角 HUD、卡片内多轮追问、疑点扫描（实验性） |
 | 配置 | 托盘图标 + 设置窗口。API Key 存在 Windows 凭据管理器；其余设置存为 JSON |
 | 语言 | 界面英文；回答默认**跟随原文语言**，可在设置里改 |
@@ -530,4 +530,131 @@ OpenGlasses/
 
 ## 9. 不在 v0.1 范围内
 
-后台主动雷达（停顿检测、pHash）、隐私黑名单、多主题、插件系统、上下文挂件、历史持久化、macOS/Linux、自动更新、代码语法高亮、按键录制控件、滚动跟踪。
+后台主动雷达（停顿检测、pHash）、隐私黑名单、带 JS 的主题或插件（沙箱 iframe 动画）、上下文挂件、历史持久化、macOS/Linux、自动更新、代码语法高亮、按键录制控件、滚动跟踪。
+
+---
+
+## 10. 主题系统（v0.2）
+
+### 10.1 原则
+
+- **运行时主题包，可热插拔。** 主题是磁盘上的一个文件夹，程序运行时扫描并加载；切换主题不需要重启；主题文件被改动后约 1 秒内自动生效。
+- **只允许 CSS 和静态资源，不允许 JS。** 叠加层的 webview 有调用 AI、截图、读取选区的权限。CSS 不能执行代码，而且 CSP 只放行本地的 `ogtheme` 协议，所以 CSS 也无法把数据发到外网。
+- **内置主题与社区主题格式完全相同。** 内置的终端绿光、全息蓝、赛博霓虹放在仓库的 `themes/` 目录，随安装包作为资源分发，同时充当贡献范例。
+- **Rust 不感知具体主题。** `settings.theme` 是一个字符串 id，新增主题不需要改动任何 Rust 代码。
+
+### 10.2 主题包格式
+
+```
+<id>/                     id 就是文件夹名，必须匹配 ^[a-z0-9][a-z0-9-]{0,31}$
+├── theme.json            清单
+├── theme.css             在 lens、panel、settings 三类窗口里都会加载
+└── *.svg|png|jpg|jpeg|webp|gif|woff2|woff|ttf|otf   CSS 里用相对 url() 引用的素材
+```
+
+`theme.json`：
+
+```json
+{ "name": "Holo Blue", "author": "OpenGlasses", "version": "1.0.0",
+  "description": "Ice-blue holographic HUD. Boot: putting on glasses.", "bootMs": 1600 }
+```
+
+`bootMs` 是开机动画在**正常速度**下的总时长，前端到时间后会移除开机舞台。如果缺失或不合法，取 1000，并限制在 300–4000 之间。
+
+### 10.3 发现与加载（`themes.rs`）
+
+- **扫描目录**：
+  - 内置目录：`<resource_dir>/themes/`，由 tauri.conf.json 的 `bundle.resources` 把仓库里的 `themes/` 复制过去。
+  - 用户目录：`<app_config_dir>/themes/`，Windows 上是 `%APPDATA%\io.github.youzilicc.openglasses\themes`。
+  - 两个目录里 id 相同时，用户目录的主题覆盖内置主题。
+  - 清单解析失败的文件夹直接跳过，并写一条 log。
+- **`ogtheme` 协议**：URL 形如 `http://ogtheme.localhost/<id>/<相对路径>`，只能解析到该主题自己的文件夹内。以下情况一律返回 404：路径包含 `..`、反斜杠、绝对路径、不在白名单里的扩展名、文件超过 8MB。
+- **响应头**：
+  - `Content-Type`；
+  - `Cache-Control: no-store`；
+  - `Access-Control-Allow-Origin: *`。CSS 的 `mask-image` 和 `@font-face` 以 CORS 方式请求资源，缺了这个头会加载失败。
+- **热重载**：后台线程每秒计算一次两个目录的指纹（所有文件的相对路径、大小、修改时间）。指纹变化时：重新扫描 → `rev` 加 1 → 向所有窗口广播 `og://themes {themes, rev}`。
+- **CSP**：`style-src`、`img-src`、`font-src` 三项都加入 `http://ogtheme.localhost`。`connect-src` 不变，主题没有任何网络能力。
+- **命令**：
+  - `list_themes() -> ThemesEvent`
+  - `reload_themes() -> ThemesEvent`：强制重新扫描
+  - `open_themes_folder()`：用 opener 打开用户主题目录，目录不存在时先创建
+
+### 10.4 前端加载（`src/shared/themeLoader.ts`）
+
+- 三类窗口启动时都执行同样的步骤：
+  1. 调用 `list_themes`；
+  2. 按 `settings.theme` 选出主题。找不到时依次退回到 `terminal`、列表里的第一个，最后退回到「无主题」；
+  3. 插入 `<link id="og-theme" rel="stylesheet" href=cssUrl>`；
+  4. 设置 `<html data-theme="<id>">`；
+  5. 在根元素上设置 `--og-speed`：fast 为 0.6，normal 为 1，slow 为 1.6。
+- 收到 `og://settings`（主题或速度变了）或 `og://themes`（rev 变了）时，原地替换 `href`。`cssUrl` 带 `?v=<rev>`，保证浏览器重新拉取。
+- 基础样式 `src/shared/base.css`（由原 `theme.css` 改名）只使用 `--og-*` 令牌，并在 `:root` 里给出与终端绿光一致的默认值。主题 CSS 加载失败时，界面仍然可用。
+
+### 10.5 主题 API（必须保持稳定，写入 `docs/THEMES.md`）
+
+**令牌**（CSS 自定义属性，主题在 `:root` 里覆盖）：
+
+| 令牌 | 用途 |
+|---|---|
+| `--og-accent` / `--og-accent-dim` / `--og-accent-faint` | 主色 / 次要文字 / 线框、分隔线 |
+| `--og-accent-2` | 第二强调色（霓虹的青色等），默认等于 `--og-accent` |
+| `--og-text` | 正文颜色 |
+| `--og-warn` | 警告和错误色 |
+| `--og-glow` / `--og-glow-warn` | 文字辉光（`text-shadow` 值） |
+| `--og-font` / `--og-font-display` | 正文字体 / 标题和 HUD 数字字体 |
+| `--og-glass-tint` | 叠在快照玻璃上的染色 |
+| `--og-panel-bg` | 没有快照时的面板底色 |
+| `--og-panel-border` | 面板描边（`border` 简写值） |
+| `--og-radius` | 面板和标注的圆角 |
+| `--og-scanlines` | 扫描线等纹理（`background-image` 值，可以为 `none`） |
+| `--og-settings-bg` | 设置窗口的不透明底色 |
+| `--og-speed` | 由程序设置，只读：所有动画时长都应写成 `calc(<ms> * var(--og-speed))` |
+
+**稳定类名**：lens、panel、settings 现有的所有类名，以及下文新增的 `og-*` 类名，都属于公开 API，改名视为破坏性变更。完整列表维护在 THEMES.md。
+
+**开机舞台**：只在主屏 lens 上、每次戴上眼镜时出现。
+
+```html
+<div class="og-boot [og-boot-noframes]"
+     style="--og-frame-0:url(…1/32…); --og-frame-1:url(…1/12…); --og-frame-2:url(…1/4…)">
+  <div class="og-boot-frame og-boot-f0"></div>   <!-- 最模糊 -->
+  <div class="og-boot-frame og-boot-f1"></div>
+  <div class="og-boot-frame og-boot-f2"></div>   <!-- 最清晰 -->
+  <div class="og-boot-fx og-boot-fx1"></div>     <!-- 三个空图层，主题用背景、遮罩、伪元素自由绘制 -->
+  <div class="og-boot-fx og-boot-fx2"></div>
+  <div class="og-boot-fx og-boot-fx3"></div>
+</div>
+```
+
+- 截图帧以 CSS 变量的形式提供，各 `.og-boot-frame` 的默认样式是铺满全屏的背景图。截图失败时根节点带 `og-boot-noframes` 类，这时变量为 `none`。
+- 舞台从挂载起存在 `bootMs × speed` 毫秒，之后卸载。主题要保证动画结束时舞台完全透明，露出真实桌面。
+- 开机期间 lens 根节点带 `og-booting` 类。HUD 的四个角带 `og-hud-corner` 类和 `--i`（0–3）序号，供主题实现依次点亮。
+- 没有提供开机 CSS 的主题，使用基础样式里的默认动画：f0 淡出到透明。
+
+### 10.6 内置主题
+
+| id | 名称 | 风格 | 开机动画（正常速度） |
+|---|---|---|---|
+| `terminal` | Terminal Green（默认） | 现有的终端绿光风格 | **1200ms**（原 400ms，用户要求放慢）。0–400ms 显示 f0 加绿色调、暗角、扫描线；400–1200ms 依次交叉淡化到 f1、f2，再到透明；屏幕边缘描线；HUD 四角依次点亮 |
+| `holo` | Holo Blue | 冰蓝 `#5ad8ff`、Bahnschrift 字体、切角面板（`clip-path`）、弧形刻度环、弱白光晕 | **1600ms，「戴上眼镜」，从模糊到清晰**：镜框（SVG）从上方落到中央，镜片内是清晰桌面，镜片外是模糊加暗角；随后镜框向外放大，越过屏幕边缘，模糊消失；镜片边缘扫过一道全息光；中心弹出刻度环；HUD 依次上线 |
+| `neon` | Cyber Neon | 品红 `#ff2bd6` 加青色 `#19f0ff`，双色霓虹辉光，出现时一次性故障闪烁（不循环） | **1400ms，霓虹通电**：模糊画面 RGB 错位、横向切片故障抖动，收成一条亮线（CRT 通电），再展开、清晰 |
+
+「镜片内清晰」的实现方法：给 f0 加双层遮罩，`linear-gradient` 减去镜片形状的 SVG（`mask-composite: exclude`）。镜片处的 f0 被挖空，露出底下的真实桌面。镜片 SVG 的 `mask-size`、`mask-position` 与镜框图层的 `transform` 使用同一组关键帧，保证两者对齐。
+
+### 10.7 设置项与自定义标题栏
+
+- **Settings 新增字段**：
+  - `theme: string`，默认 `"terminal"`；
+  - `animSpeed: "fast" | "normal" | "slow"`，默认 `"normal"`。
+- **Appearance 页签新增**：
+  - Theme 下拉框，显示名称、作者和描述，标注 Built-in / User；
+  - Animation speed（Fast / Normal / Slow）；
+  - 「Open themes folder」和「Reload」两个按钮。
+- **设置窗口去掉系统标题栏**：`decorations(false)`、`shadow(true)`（Win11 下保留圆角和阴影）、`resizable(true)`。
+  - 自定义的 `og-titlebar` 组件包含：拖拽区（`data-tauri-drag-region`）、标题、最小化按钮和关闭按钮，样式随主题变化。
+  - 新增一个只授予 `settings` 窗口的 capability：`core:window:allow-start-dragging`、`allow-minimize`、`allow-close`。lens 和 panel 拿不到这些权限。
+
+### 10.8 开发预览（给主题作者）
+
+`dev/preview/` 是一个本地预览页面。它模拟 Tauri IPC，在普通浏览器里渲染 lens、panel、settings 三类窗口，可以回放开机动画、示例回答和 HUD。在 macOS 或 Linux 上也能开发主题。用法：`pnpm dev`，然后在浏览器里打开 `http://localhost:1420/dev/preview/`。它只用于开发，不打进安装包。

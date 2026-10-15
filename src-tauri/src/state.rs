@@ -18,6 +18,7 @@ pub struct AppState {
     pub ai: crate::ai::AiState,
     pub capture: crate::capture::CaptureState,
     pub flow: crate::actions::FlowState,
+    pub themes: crate::themes::ThemeState,
 }
 
 impl AppState {
@@ -30,6 +31,7 @@ impl AppState {
             ai: Default::default(),
             capture: Default::default(),
             flow: Default::default(),
+            themes: Default::default(),
         }
     }
 }
