@@ -19,7 +19,12 @@ function SessionView() {
   else if (s.style === "lockon") view = <LockOn s={s} />;
   else if (s.style === "caption") view = <Caption s={s} />;
   else if (s.style === "rail") view = <RailLink s={s} />;
-  return <div className={s.closing ? "session closing" : "session"}>{view}</div>;
+  // Keyed by session: a new session remounts, so its intro animations play again.
+  return (
+    <div key={s.id} className={s.closing ? "session closing" : "session"}>
+      {view}
+    </div>
+  );
 }
 
 export function Lens() {

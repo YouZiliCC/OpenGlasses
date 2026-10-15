@@ -32,4 +32,13 @@ async function main() {
   createRoot(document.getElementById("root")!).render(<Panel />);
 }
 
+// No page reload in the panel (a reload replays queued deltas onto the restored snapshot):
+// keep right-click Copy/Paste on text, drop the page menu and F5 / Ctrl+R.
+window.addEventListener("contextmenu", (e) => {
+  if (!(e.target instanceof HTMLTextAreaElement) && !getSelection()?.toString()) e.preventDefault();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")) e.preventDefault();
+});
+
 void main();

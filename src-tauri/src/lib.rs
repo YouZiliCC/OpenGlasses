@@ -44,6 +44,19 @@ pub fn run() {
             commands::open_settings,
             commands::get_history,
         ])
+        .on_window_event(|w, e| {
+            // Overlays live for the whole run: Alt+F4 in the (focused) panel only closes the
+            // answer, like Esc; lenses are never focused but must not be closable either.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                if w.label() != "settings" {
+                    api.prevent_close();
+                    if w.label() == "panel" {
+                        let app = w.app_handle().clone();
+                        std::thread::spawn(move || ai::dismiss_active(&app));
+                    }
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             let settings = settings::load(&handle);

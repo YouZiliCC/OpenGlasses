@@ -11,7 +11,10 @@ use std::time::{Duration, Instant};
 use windows::core::{w, Owned, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, POINT, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+use windows::Win32::Graphics::Gdi::{
+    DeleteEnhMetaFile, GetEnhMetaFileBits, GetMonitorInfoW, MonitorFromPoint, SetEnhMetaFileBits, HENHMETAFILE, MONITORINFO,
+    MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::DataExchange::{
@@ -485,6 +488,20 @@ fn snapshot(owner: HWND) -> Option<(u32, Saved)> {
         if t0.elapsed() > SNAPSHOT_BUDGET {
             return None;
         }
+        if fmt == CF_ENHMETAFILE.0 as u32 {
+            // "Copy as Picture" content is an EMF handle, not an HGLOBAL: save its bits.
+            let Ok(h) = (unsafe { GetClipboardData(fmt) }) else { continue };
+            let emf = HENHMETAFILE(h.0);
+            let n = unsafe { GetEnhMetaFileBits(emf, None) } as usize;
+            if n > MAX_FORMAT_BYTES {
+                return None;
+            }
+            let mut bytes = vec![0u8; n];
+            if n > 0 && unsafe { GetEnhMetaFileBits(emf, Some(&mut bytes)) } as usize == n {
+                saved.push((fmt, bytes));
+            }
+            continue;
+        }
         if !is_hglobal_format(fmt) {
             continue;
         }
@@ -545,6 +562,14 @@ unsafe fn restore(saved: &[(u32, Vec<u8>)]) {
 }
 
 unsafe fn set_data(fmt: u32, bytes: &[u8]) {
+    if fmt == CF_ENHMETAFILE.0 as u32 {
+        // CF_METAFILEPICT is re-synthesized by the system from the EMF.
+        let emf = SetEnhMetaFileBits(bytes);
+        if !emf.is_invalid() && SetClipboardData(fmt, Some(HANDLE(emf.0))).is_err() {
+            let _ = DeleteEnhMetaFile(Some(emf));
+        }
+        return;
+    }
     let Ok(g) = GlobalAlloc(GMEM_MOVEABLE, bytes.len()) else { return };
     if !bytes.is_empty() {
         let p = GlobalLock(g);

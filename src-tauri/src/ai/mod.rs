@@ -471,7 +471,10 @@ fn api_key(p: &Provider) -> Result<Option<String>, AiError> {
 }
 
 fn client(base_url: &str, proxy: Option<&str>) -> Result<reqwest::Client, AiError> {
-    let mut b = reqwest::Client::builder().user_agent(concat!("OpenGlasses/", env!("CARGO_PKG_VERSION")));
+    // No redirects: following one would forward the API key and the screenshot to another host.
+    let mut b = reqwest::Client::builder()
+        .user_agent(concat!("OpenGlasses/", env!("CARGO_PKG_VERSION")))
+        .redirect(reqwest::redirect::Policy::none());
     if is_local(base_url) {
         b = b.no_proxy();
     } else if let Some(p) = proxy.map(str::trim).filter(|p| !p.is_empty()) {
@@ -718,18 +721,27 @@ async fn stream(job: &mut Job, sink: &mut Sink<'_>, parsed: &mut Parsed) -> Resu
         return Err(http_error(status, &body));
     }
     let mut events = std::pin::pin!(resp.bytes_stream().eventsource());
+    // Local servers may answer headers at once and only send the first chunk after a long
+    // prefill, so the first-byte allowance (90 s on localhost) runs until the first event.
+    let first_deadline = sink.sent + first_byte_timeout(&job.req.base_url);
+    let mut got_event = false;
     loop {
         let flush_at = sink.last_emit.unwrap_or_else(Instant::now) + BATCH;
+        let wait = if got_event { IDLE } else { first_deadline.saturating_duration_since(Instant::now()) };
         tokio::select! {
             _ = tokio::time::sleep_until(flush_at.into()), if !sink.pending.is_empty() => sink.flush(),
-            ev = tokio::time::timeout(IDLE, events.next()) => {
+            ev = tokio::time::timeout(wait, events.next()) => {
                 let ev = match ev {
+                    Err(_) if !got_event => return Err(AiError::new("TIMEOUT", "no response from the provider")),
                     Err(_) => return Err(AiError::new("TIMEOUT", "the stream stalled for 30 s")),
                     Ok(None) if parsed.done || parsed.finished => return Ok(()),
                     Ok(None) => return Err(AiError::new("NETWORK", "connection closed mid-answer")),
                     Ok(Some(Err(eventsource_stream::EventStreamError::Transport(e)))) => return Err(net_error(&e)),
                     Ok(Some(Err(e))) => return Err(AiError::new("NETWORK", clip(&e.to_string(), 200))),
-                    Ok(Some(Ok(ev))) => ev,
+                    Ok(Some(Ok(ev))) => {
+                        got_event = true;
+                        ev
+                    }
                 };
                 let text = match job.provider.kind {
                     ProviderKind::Openai => openai::feed(&ev.data, parsed)?,
