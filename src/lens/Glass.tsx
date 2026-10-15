@@ -18,7 +18,7 @@ export function GlassBg({ glass }: { glass: Glass | null }) {
       ref={ref}
       className="glass"
       style={{
-        backgroundImage: `var(--scanlines), linear-gradient(var(--glass-tint), var(--glass-tint)), url("${glass.url}")`,
+        backgroundImage: `var(--og-scanlines), linear-gradient(var(--og-glass-tint), var(--og-glass-tint)), url("${glass.url}")`,
         backgroundSize: `auto, auto, ${glass.w}px ${glass.h}px`,
       }}
     />

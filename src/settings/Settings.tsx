@@ -2,7 +2,9 @@
 import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { create } from "zustand";
 import { call } from "../shared/bridge";
-import type { BboxFormat, GlassMode, HotkeyAction, HudCorners, Provider, Settings, Style } from "../shared/ipc";
+import type { AnimSpeed, BboxFormat, GlassMode, HotkeyAction, HudCorners, Provider, Settings, Style } from "../shared/ipc";
+import { onThemes, setTheme, useTheme } from "../shared/themeLoader";
+import { TitleBar } from "./TitleBar";
 
 /** Last settings known to be persisted (get_settings, og://settings or our own save). */
 export const useSaved = create<{ saved: Settings | null; loadError: string | null }>()(() => ({
@@ -41,10 +43,25 @@ const GLASS: [GlassMode, string, string][] = [
   ["acrylic", "Acrylic (experimental)", "native Windows acrylic on the panel; may turn solid while inactive"],
 ];
 
+const SPEEDS: [AnimSpeed, string][] = [
+  ["fast", "Fast"],
+  ["normal", "Normal"],
+  ["slow", "Slow"],
+];
+
 export function SettingsApp() {
   const { saved, loadError } = useSaved();
-  if (!saved) return <div className="set-loading">{loadError ? <span className="warn">⚠ {loadError}</span> : "LOADING…"}</div>;
-  return <Editor saved={saved} />;
+  // The title bar is always there: it is the only way to move or close this window.
+  return (
+    <div className="set">
+      <TitleBar />
+      {saved ? (
+        <Editor saved={saved} />
+      ) : (
+        <div className="set-loading">{loadError ? <span className="warn">⚠ {loadError}</span> : "LOADING…"}</div>
+      )}
+    </div>
+  );
 }
 
 function Editor({ saved }: { saved: Settings }) {
@@ -69,6 +86,10 @@ function Editor({ saved }: { saved: Settings }) {
     setBase(saved);
     if (!dirty) reset(saved);
   }
+
+  // Live preview: this window shows the draft's theme and speed before Save.
+  const { theme, animSpeed } = draft;
+  useEffect(() => setTheme({ theme, animSpeed }), [theme, animSpeed]);
 
   const save = async () => {
     if (!final) return;
@@ -97,7 +118,7 @@ function Editor({ saved }: { saved: Settings }) {
         : status;
 
   return (
-    <div className="set">
+    <>
       <nav className="set-tabs">
         <span className="set-brand glow">◉ OPENGLASSES</span>
         {TABS.map((t) => (
@@ -130,7 +151,7 @@ function Editor({ saved }: { saved: Settings }) {
           {busy ? "SAVING…" : "SAVE"}
         </button>
       </footer>
-    </div>
+    </>
   );
 }
 
@@ -360,9 +381,72 @@ function Hotkeys({ draft, setDraft, errors }: { draft: Settings; setDraft: SetDr
   );
 }
 
+/** Theme packs (DESIGN §10.7): picking one previews it in this window at once; Save applies it everywhere. */
+function ThemePicker({ draft, setDraft }: { draft: Settings; setDraft: SetDraft }) {
+  const themes = useTheme((s) => s.themes);
+  const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
+  const t = themes.find((x) => x.id === draft.theme);
+  const run = (p: Promise<string>) => {
+    setMsg(null);
+    p.then(
+      (text) => setMsg({ text, warn: false }),
+      (e) => setMsg({ text: `⚠ ${String(e)}`, warn: true }),
+    );
+  };
+  const reload = () =>
+    run(
+      call("reload_themes").then((ev) => {
+        onThemes(ev);
+        return `${ev.themes.length} theme${ev.themes.length === 1 ? "" : "s"} found`;
+      }),
+    );
+  return (
+    <Section title="Theme · previewed here, applied everywhere on Save">
+      <select value={draft.theme} onChange={(e) => setDraft((d) => ({ ...d, theme: e.target.value }))}>
+        {!t && <option value={draft.theme}>{draft.theme} (not found)</option>}
+        {themes.map((x) => (
+          <option key={x.id} value={x.id}>
+            {x.name}
+          </option>
+        ))}
+      </select>
+      <div className="hint">
+        {t ? (
+          <>
+            {t.author} · {t.version} · {t.builtin ? "Built-in" : "User"}
+            <br />
+            {t.description}
+          </>
+        ) : (
+          "Not installed: a fallback theme is shown instead"
+        )}
+      </div>
+      <div className="inline" style={{ marginTop: 8 }}>
+        <button className="btn" onClick={() => run(call("open_themes_folder").then(() => ""))}>
+          OPEN THEMES FOLDER
+        </button>
+        <button className="btn" onClick={reload}>
+          RELOAD THEMES
+        </button>
+        {msg?.text && <span className={msg.warn ? "warn" : "dim"}>{msg.text}</span>}
+      </div>
+    </Section>
+  );
+}
+
 function Appearance({ draft, setDraft }: { draft: Settings; setDraft: SetDraft }) {
   return (
     <>
+      <ThemePicker draft={draft} setDraft={setDraft} />
+      <Section title="Animation speed">
+        <div className="inline" style={{ columnGap: 24 }}>
+          {SPEEDS.map(([v, name]) => (
+            <Choice key={v} name="speed" checked={draft.animSpeed === v} onPick={() => setDraft((d) => ({ ...d, animSpeed: v }))}>
+              {name}
+            </Choice>
+          ))}
+        </div>
+      </Section>
       <Section title="Default style · applies from the next answer">
         {STYLES.map(([v, name, desc]) => (
           <Choice key={v} name="style" checked={draft.style === v} onPick={() => setDraft((d) => ({ ...d, style: v }))}>

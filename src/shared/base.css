@@ -1,0 +1,112 @@
+/* Base styles shared by lens, panel and settings (DESIGN §10.4). Only the --og-* tokens below
+   carry theme values; their defaults are Terminal Green, so the UI stays usable when no theme CSS
+   loads. A theme overrides them on :root: its <link id="og-theme"> comes after this file.
+   Derived defaults (faint, glow, scanlines) follow --og-accent, so a theme may set just that. */
+:root {
+  --og-accent: #39ff7a;
+  --og-accent-dim: #1f9c4a;
+  --og-accent-faint: color-mix(in srgb, var(--og-accent) 18%, transparent);
+  --og-accent-2: var(--og-accent);
+  --og-text: var(--og-accent);
+  --og-warn: #ffcc33;
+  --og-glow: 0 0 6px color-mix(in srgb, var(--og-accent) 55%, transparent);
+  --og-glow-warn: 0 0 6px color-mix(in srgb, var(--og-warn) 55%, transparent);
+  --og-font: "Cascadia Mono", "Consolas", "Microsoft YaHei UI", monospace;
+  --og-font-display: var(--og-font);
+  --og-glass-tint: rgba(2, 12, 5, 0.62);
+  --og-panel-bg: rgba(3, 14, 7, 0.9);
+  --og-panel-border: 1px solid var(--og-accent-faint);
+  --og-radius: 0px;
+  --og-scanlines: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--og-accent) 6%, transparent) 0,
+    color-mix(in srgb, var(--og-accent) 6%, transparent) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  --og-settings-bg: #030e07;
+  /* Set by themeLoader from settings.animSpeed (fast .6, normal 1, slow 1.6). */
+  --og-speed: 1;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  color: var(--og-text);
+  font-family: var(--og-font);
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.glow {
+  text-shadow: var(--og-glow);
+}
+
+.warn {
+  color: var(--og-warn);
+  text-shadow: var(--og-glow-warn);
+}
+
+/* Appear effect of callouts, captions and the panel; no looping animation afterwards.
+   Plain fade here; themes redefine @keyframes og-crt-on (Terminal: two CRT flickers). */
+@keyframes og-crt-on {
+  from { opacity: 0; }
+}
+.crt-on {
+  animation: og-crt-on calc(100ms * var(--og-speed)) linear 1;
+}
+
+/* Streaming caret, shown only while streaming. */
+@keyframes og-caret {
+  50% { opacity: 0; }
+}
+.caret::after {
+  content: "▌";
+  margin-left: 1px;
+  animation: og-caret 1s steps(1) infinite;
+}
+
+/* Markdown, monochrome. */
+.md p { margin: 0 0 0.6em; }
+.md p:last-child { margin-bottom: 0; }
+.md a { color: var(--og-accent); text-decoration: underline dotted; cursor: pointer; }
+.md code {
+  font-family: var(--og-font);
+  background: color-mix(in srgb, var(--og-accent) 8%, transparent);
+  border: 1px solid var(--og-accent-faint);
+  padding: 0 3px;
+}
+.md pre {
+  margin: 0.5em 0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--og-accent-faint);
+  border-radius: var(--og-radius);
+  overflow-x: auto;
+  white-space: pre;
+}
+.md pre code { background: none; border: 0; padding: 0; }
+.md ul, .md ol { margin: 0.3em 0 0.6em; padding-left: 1.4em; }
+.md h1, .md h2, .md h3, .md h4 { font-size: 1em; margin: 0.6em 0 0.3em; text-transform: uppercase; letter-spacing: 0.06em; }
+.md table { border-collapse: collapse; margin: 0.5em 0; }
+.md th, .md td { border: 1px solid var(--og-accent-faint); padding: 2px 6px; }
+.md blockquote { margin: 0.5em 0; padding-left: 8px; border-left: 2px solid var(--og-accent-dim); color: var(--og-accent-dim); }
+.md .katex { color: inherit; font-size: 1.05em; }
+.md .katex-display { margin: 0.4em 0; overflow-x: auto; overflow-y: hidden; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--og-accent-faint); }
+::-webkit-scrollbar-track { background: transparent; }

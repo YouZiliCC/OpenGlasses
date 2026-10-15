@@ -1,10 +1,13 @@
-// Panel entry: register listeners, then frontend_ready, then render (DESIGN §3.8 rules 2–3).
-import "../shared/theme.css";
+// Panel entry: register listeners, then frontend_ready, then the theme, then render
+// (DESIGN §3.8 rules 2–3, §10.4).
+import "../shared/base.css";
 import "./panel.css";
 import { createRoot } from "react-dom/client";
 import { call, on } from "../shared/bridge";
+import type { Settings } from "../shared/ipc";
+import { initTheme, onThemes, setTheme } from "../shared/themeLoader";
 import { Panel } from "./Panel";
-import { applyInit, onPanel, onSession, onSettings } from "./store";
+import { applyInit, onPanel, onSession, onSettings, usePanel } from "./store";
 
 // Events that land before the InitState snapshot is applied are replayed after it.
 let pending: (() => void)[] | null = [];
@@ -19,13 +22,21 @@ async function main() {
   await Promise.all([
     on("og://session", gate(onSession)),
     on("og://panel", gate(onPanel)),
-    on("og://settings", gate(onSettings)),
+    on(
+      "og://settings",
+      gate((s: Settings) => {
+        onSettings(s);
+        setTheme(s);
+      }),
+    ),
+    on("og://themes", onThemes),
   ]);
   try {
     applyInit(await call("frontend_ready"));
   } catch (e) {
     console.error("frontend_ready", e);
   }
+  await initTheme(usePanel.getState().settings);
   const queued = pending ?? [];
   pending = null;
   queued.forEach((f) => f());

@@ -1,1 +1,137 @@
-/* placeholder; replaced by the terminal theme implementation */
+/* Terminal Green (built-in default; also the reference theme, see docs/THEMES.md).
+   Monochrome phosphor, scanlines, a CRT flicker when things appear.
+   Boot, 1200 ms at normal speed (DESIGN §10.6):
+     0–400     blurred desktop (f0) under a green tint, vignette and scanlines
+     400–1200  cross-fade to f1, then f2, then transparent; the tint fades with it
+     100–700   the screen edge is traced clockwise from the top-left, faded out 900–1200
+     450–1080  HUD corners flicker on in turn (--i)
+   No screenshot: vignette plus one scan line sweeping down. Every duration is × --og-speed. */
+
+:root {
+  --og-accent: #39ff7a;
+  --og-accent-dim: #1f9c4a;
+  --og-accent-faint: rgba(57, 255, 122, 0.18);
+  --og-accent-2: #3dffc8; /* scan anchor dots: cyan-leaning phosphor */
+  --og-text: #39ff7a;
+  --og-warn: #ffcc33;
+  --og-glow: 0 0 6px rgba(57, 255, 122, 0.55);
+  --og-glow-warn: 0 0 6px rgba(255, 204, 51, 0.55);
+  --og-font: "Cascadia Mono", "Consolas", "Microsoft YaHei UI", monospace;
+  --og-font-display: var(--og-font);
+  --og-glass-tint: rgba(2, 12, 5, 0.62);
+  --og-panel-bg: rgba(3, 14, 7, 0.9);
+  --og-panel-border: 1px solid rgba(57, 255, 122, 0.18);
+  --og-radius: 0px;
+  --og-scanlines: repeating-linear-gradient(
+    to bottom,
+    rgba(57, 255, 122, 0.06) 0,
+    rgba(57, 255, 122, 0.06) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  --og-settings-bg: #030e07;
+}
+
+/* CRT flicker: two quick flickers when a callout, caption or the panel appears. */
+@keyframes og-crt-on {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  35% { opacity: 0.25; }
+  55% { opacity: 1; }
+  70% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Pinned: tint the 📌 emoji phosphor green. */
+.tb.pin.on {
+  filter: grayscale(1) sepia(1) hue-rotate(75deg) saturate(5);
+}
+
+/* ---- Boot: frames. Sharper frames stack on top: each fades in over the previous one, which
+   then drops out unseen. 400 ms = 33.3%, 650 ms = 54%, 900 ms = 75%. ---- */
+.og-boot-f0 { animation: og-term-f0 calc(1200ms * var(--og-speed)) linear forwards; }
+.og-boot-f1 { animation: og-term-f1 calc(1200ms * var(--og-speed)) linear forwards; }
+.og-boot-f2 { animation: og-term-f2 calc(1200ms * var(--og-speed)) linear forwards; }
+@keyframes og-term-f0 {
+  0%, 54% { opacity: 1; }
+  54.5%, 100% { opacity: 0; }
+}
+@keyframes og-term-f1 {
+  0%, 33.3% { opacity: 0; }
+  54%, 74.5% { opacity: 1; }
+  75%, 100% { opacity: 0; }
+}
+@keyframes og-term-f2 {
+  0%, 54% { opacity: 0; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* fx1: green tint + vignette + scanlines over the frames. */
+.og-boot-fx1 {
+  background:
+    var(--og-scanlines),
+    radial-gradient(ellipse at center, transparent 45%, rgba(0, 8, 3, 0.75) 100%),
+    rgba(6, 48, 20, 0.45);
+  animation: og-term-veil calc(1200ms * var(--og-speed)) linear forwards;
+}
+@keyframes og-term-veil {
+  0%, 45% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* No screenshot: vignette only, and a scan line sweeping down (fx1::after). */
+.og-boot-noframes .og-boot-fx1 {
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 12, 5, 0.8) 100%);
+}
+.og-boot-noframes .og-boot-fx1::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--og-accent);
+  box-shadow: 0 0 14px 3px rgba(57, 255, 122, 0.55);
+  animation: og-term-sweep calc(800ms * var(--og-speed)) ease-in-out calc(100ms * var(--og-speed)) both;
+}
+@keyframes og-term-sweep {
+  to { transform: translateY(100vh); opacity: 0.2; }
+}
+
+/* fx2/fx3: the screen edge, one side per pseudo-element (top, right, bottom, left), each
+   growing from where the previous one ended; scale keeps it on the compositor. */
+.og-boot-fx2::before,
+.og-boot-fx2::after,
+.og-boot-fx3::before,
+.og-boot-fx3::after {
+  content: "";
+  position: absolute;
+  background: var(--og-accent);
+  box-shadow: 0 0 6px rgba(57, 255, 122, 0.55);
+  animation:
+    og-term-trace calc(150ms * var(--og-speed)) linear calc(var(--d) * var(--og-speed)) both,
+    og-term-out calc(300ms * var(--og-speed)) linear calc(900ms * var(--og-speed)) forwards;
+}
+.og-boot-fx2::before { --d: 100ms; --s: 0 1; top: 6px; left: 6px; right: 6px; height: 1.5px; transform-origin: left; }
+.og-boot-fx2::after { --d: 250ms; --s: 1 0; top: 6px; right: 6px; bottom: 6px; width: 1.5px; transform-origin: top; }
+.og-boot-fx3::before { --d: 400ms; --s: 0 1; bottom: 6px; left: 6px; right: 6px; height: 1.5px; transform-origin: right; }
+.og-boot-fx3::after { --d: 550ms; --s: 1 0; top: 6px; left: 6px; bottom: 6px; width: 1.5px; transform-origin: bottom; }
+@keyframes og-term-trace {
+  from { scale: var(--s); }
+}
+@keyframes og-term-out {
+  to { opacity: 0; }
+}
+
+/* HUD corners flicker on in turn while the frames sharpen. No 100% keyframe: each corner ends
+   on its current opacity (0.8, or 0.15 near the cursor). */
+.og-hud-corner.lit {
+  animation: og-hud-on calc(300ms * var(--og-speed)) linear calc((450ms + var(--i) * 110ms) * var(--og-speed)) backwards;
+}
+@keyframes og-hud-on {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  55% { opacity: 0.2; }
+  75% { opacity: 1; }
+}
