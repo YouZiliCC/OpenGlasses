@@ -1,6 +1,6 @@
 // Runtime theme packs, frontend side (DESIGN §10.4). Every window links the chosen theme's CSS
 // after the app CSS, sets html[data-theme] and --og-speed, and re-applies on og://settings
-// (theme/speed changed) and og://themes (files changed: cssUrl carries ?v=<rev>).
+// (theme/speed changed) and og://themes (files changed: cssUrl carries the r<rev> path segment).
 import { create } from "zustand";
 import { call } from "./bridge";
 import { SPEED_FACTOR, type Settings, type ThemeInfo, type ThemesEvent } from "./ipc";

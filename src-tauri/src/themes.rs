@@ -188,7 +188,9 @@ fn info(id: String, m: Manifest, builtin: bool, rev: u64) -> ThemeInfo {
         description: m.description,
         boot_ms: m.boot_ms.as_f64().map_or(1000, |n| n.clamp(300.0, 4000.0).round() as u32),
         builtin,
-        css_url: format!("{BASE}{id}/theme.css?v={rev}"),
+        // The revision is a path segment, not a query, so relative url()s in the sheet
+        // (svg/png/fonts) resolve to new URLs too and hot-reload with it.
+        css_url: format!("{BASE}{id}/r{rev}/theme.css"),
         id,
     }
 }
@@ -226,6 +228,11 @@ fn fingerprint(app: &AppHandle) -> Vec<(PathBuf, u64, Option<SystemTime>)> {
 fn load(app: &AppHandle, raw: &str) -> Option<(&'static str, Vec<u8>)> {
     let path = percent_decode(raw.trim_start_matches('/'))?;
     let (id, rest) = path.split_once('/')?;
+    // Drop the cache-busting `r<rev>/` segment that css_url puts in front of every theme file.
+    let rest = match rest.split_once('/') {
+        Some((seg, tail)) if seg.len() > 1 && seg.starts_with('r') && seg[1..].bytes().all(|c| c.is_ascii_digit()) => tail,
+        _ => rest,
+    };
     // ':' covers drive letters and NTFS alternate streams; an empty segment covers absolute
     // paths and `//`.
     if !valid_id(id) || rest.contains(['\\', ':', '\0']) {

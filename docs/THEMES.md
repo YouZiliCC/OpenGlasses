@@ -51,7 +51,9 @@ The overlay windows can call the AI, take screenshots and read the selection, so
   only from inside that theme's own folder (`..`, backslashes and absolute paths give 404).
 - The Content Security Policy allows styles, images and fonts from `ogtheme` only, and
   `connect-src` is unchanged. Remote `url()`s and `@import`s from the internet are blocked, so
-  CSS cannot send anything anywhere.
+  CSS cannot send anything anywhere. Under `pnpm tauri dev` the app is served by Vite instead of
+  Tauri's asset protocol, so `vite.config.ts` sends the same style/image/font limits as a header.
+  Reviewing a theme PR in dev is therefore just as contained as running a release build.
 
 ## Tokens
 

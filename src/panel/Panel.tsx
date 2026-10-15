@@ -132,7 +132,9 @@ function useReportHeight(
         send(false);
       }, wait);
     });
-    for (const r of parts) if (r.current) ro.observe(r.current);
+    // Border boxes + the panel itself: a theme that only changes padding/border must re-report too.
+    for (const r of parts) if (r.current) ro.observe(r.current, { box: "border-box" });
+    if (root.current) ro.observe(root.current);
     return () => {
       ro.disconnect();
       clearTimeout(timer);

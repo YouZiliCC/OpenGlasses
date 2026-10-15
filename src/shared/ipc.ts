@@ -182,7 +182,7 @@ export interface ThemeInfo {
   bootMs: number;
   /** Shipped with the app (false = user theme folder; overrides a built-in with the same id). */
   builtin: boolean;
-  /** http://ogtheme.localhost/<id>/theme.css?v=<rev> */
+  /** http://ogtheme.localhost/<id>/r<rev>/theme.css (rev in the path so relative assets reload too) */
   cssUrl: string;
 }
 

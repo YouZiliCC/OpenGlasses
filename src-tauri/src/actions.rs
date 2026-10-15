@@ -6,7 +6,7 @@ use crate::capture::{self, Shot};
 use crate::grab::{self, GrabResult};
 use crate::state::{self, st};
 use crate::types::*;
-use crate::{hotkeys, settings, telemetry, tray, windows};
+use crate::{hotkeys, settings, telemetry, themes, tray, windows};
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
@@ -146,12 +146,29 @@ pub fn startup(app: &AppHandle) {
         }
         if !settings::provider_usable(&settings::active_provider(&s)) {
             if s.lens_on {
-                // Let the ~400 ms Lens-On animation finish first.
-                std::thread::sleep(Duration::from_millis(450));
+                // Let the theme's boot stage finish first (it may wait ~1 s for the theme CSS).
+                std::thread::sleep(boot_duration(&app, &s) + Duration::from_millis(1150));
             }
             tauri::async_runtime::spawn(windows::open_settings(app.clone()));
         }
     });
+}
+
+/// Length of the active theme's boot stage at the current speed (DESIGN §10.4/§10.5).
+fn boot_duration(app: &AppHandle, s: &Settings) -> Duration {
+    let ts = themes::list(app).themes;
+    let boot_ms = ts
+        .iter()
+        .find(|t| t.id == s.theme)
+        .or_else(|| ts.iter().find(|t| t.id == "terminal"))
+        .or(ts.first())
+        .map_or(1000, |t| t.boot_ms);
+    let k = match s.anim_speed {
+        AnimSpeed::Fast => 0.6,
+        AnimSpeed::Normal => 1.0,
+        AnimSpeed::Slow => 1.6,
+    };
+    Duration::from_millis((boot_ms as f64 * k) as u64)
 }
 
 fn toast_hotkey_errors(app: &AppHandle, s: &Settings, errors: &BTreeMap<HotkeyAction, String>) {
