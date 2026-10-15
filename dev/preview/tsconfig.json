@@ -1,0 +1,5 @@
+{
+  // The preview harness is not part of the app build: check it with `tsc -p dev/preview`.
+  "extends": "../../tsconfig.json",
+  "include": ["."]
+}

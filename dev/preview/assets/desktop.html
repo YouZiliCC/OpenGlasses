@@ -1,0 +1,650 @@
+<!doctype html>
+<!-- Source of desktop.png (the preview's fake monitor). Regenerate: node dev/preview/shoot.mjs --scenario desktop
+     Elements with data-anchor are measured by that command; copy the printed rects into data.ts. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>desktop</title>
+    <style>
+      body {
+        margin: 0;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        position: relative;
+        font: 13px "Segoe UI", "Noto Sans", "DejaVu Sans", sans-serif;
+        background:
+          radial-gradient(ellipse 900px 520px at 1180px 640px, #3f6fd8 0%, #1d3b8f 38%, transparent 70%),
+          radial-gradient(ellipse 700px 420px at 1380px 820px, #6c4fd0 0%, transparent 65%),
+          linear-gradient(160deg, #0b1630 0%, #0d1f4a 55%, #10183a 100%);
+      }
+      .win {
+        position: absolute;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+      }
+      .ctl {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+      }
+      .ctl span {
+        width: 46px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+      }
+      .mono {
+        font-family: "Cascadia Code", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+      }
+
+      /* ---- VS Code ---- */
+      #ide {
+        left: 12px;
+        top: 12px;
+        width: 784px;
+        height: 508px;
+        background: #1f1f1f;
+        color: #cccccc;
+      }
+      #ide .title {
+        height: 30px;
+        background: #181818;
+        border-bottom: 1px solid #2b2b2b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-left: 330px;
+        font-size: 12px;
+        color: #9d9d9d;
+      }
+      #ide .menu {
+        position: absolute;
+        left: 40px;
+        top: 7px;
+        font-size: 12px;
+        color: #9d9d9d;
+        word-spacing: 10px;
+      }
+      #ide .logo {
+        position: absolute;
+        left: 12px;
+        top: 7px;
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        background: #2f8fe0;
+      }
+      #ide .act {
+        position: absolute;
+        left: 0;
+        top: 31px;
+        bottom: 22px;
+        width: 46px;
+        background: #181818;
+        border-right: 1px solid #2b2b2b;
+      }
+      #ide .act i {
+        display: block;
+        width: 22px;
+        height: 22px;
+        margin: 12px auto 18px;
+        border: 2px solid #868686;
+        border-radius: 4px;
+      }
+      #ide .act i:first-child {
+        border-color: #d7d7d7;
+      }
+      #ide .side {
+        position: absolute;
+        left: 47px;
+        top: 31px;
+        bottom: 22px;
+        width: 190px;
+        background: #181818;
+        border-right: 1px solid #2b2b2b;
+        font-size: 12.5px;
+      }
+      #ide .side div {
+        padding: 3px 12px;
+        white-space: nowrap;
+      }
+      #ide .side .h {
+        font-size: 11px;
+        color: #9d9d9d;
+        padding: 9px 12px;
+        letter-spacing: 0.04em;
+      }
+      #ide .side .on {
+        background: #37373d;
+        outline: 1px solid #0078d4;
+        outline-offset: -1px;
+      }
+      #ide .editor {
+        position: absolute;
+        left: 238px;
+        top: 31px;
+        right: 0;
+        bottom: 22px;
+      }
+      #ide .tabs {
+        height: 35px;
+        background: #181818;
+        display: flex;
+        border-bottom: 1px solid #2b2b2b;
+      }
+      #ide .tabs span {
+        padding: 0 14px;
+        line-height: 35px;
+        font-size: 12.5px;
+        color: #9d9d9d;
+        border-right: 1px solid #2b2b2b;
+      }
+      #ide .tabs .on {
+        background: #1f1f1f;
+        color: #ffffff;
+        border-top: 1px solid #0078d4;
+      }
+      #ide .crumbs {
+        height: 22px;
+        line-height: 22px;
+        padding-left: 16px;
+        font-size: 12px;
+        color: #a9a9a9;
+      }
+      #ide pre {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 20px;
+        color: #cccccc;
+      }
+      #ide pre div {
+        white-space: pre;
+        padding-right: 8px;
+      }
+      #ide pre b {
+        display: inline-block;
+        width: 46px;
+        padding-right: 18px;
+        text-align: right;
+        font-weight: normal;
+        color: #6e7681;
+      }
+      #ide pre .cur {
+        background: #2a2d2e;
+      }
+      #ide .squig {
+        text-decoration: underline wavy #f14c4c;
+        text-underline-offset: 3px;
+      }
+      .k { color: #569cd6; }
+      .c { color: #c586c0; }
+      .t { color: #4ec9b0; }
+      .f { color: #dcdcaa; }
+      .s { color: #ce9178; }
+      .n { color: #b5cea8; }
+      .v { color: #9cdcfe; }
+      .m { color: #4fc1ff; }
+      .g { color: #6a9955; }
+      #ide .status {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 22px;
+        background: #181818;
+        border-top: 1px solid #2b2b2b;
+        font-size: 12px;
+        line-height: 22px;
+        color: #cccccc;
+        padding-left: 10px;
+        word-spacing: 4px;
+      }
+      #ide .status .remote {
+        display: inline-block;
+        background: #0078d4;
+        color: #fff;
+        padding: 0 10px;
+        margin-left: -10px;
+        margin-right: 10px;
+      }
+      #ide .status .err {
+        color: #f48771;
+      }
+      #ide .status .r {
+        float: right;
+        padding-right: 12px;
+      }
+
+      /* ---- Browser ---- */
+      #web {
+        left: 808px;
+        top: 12px;
+        width: 780px;
+        height: 628px;
+        background: #ffffff;
+        color: #262626;
+      }
+      #web .strip {
+        height: 36px;
+        background: #dfe3e8;
+        position: relative;
+      }
+      #web .tab {
+        position: absolute;
+        left: 8px;
+        top: 6px;
+        width: 300px;
+        height: 30px;
+        background: #f7f8fa;
+        border-radius: 8px 8px 0 0;
+        font-size: 12px;
+        line-height: 30px;
+        padding-left: 34px;
+        box-sizing: border-box;
+        white-space: nowrap;
+        overflow: hidden;
+        color: #1f1f1f;
+      }
+      #web .tab::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        top: 8px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #000;
+      }
+      #web .tab2 {
+        position: absolute;
+        left: 312px;
+        top: 6px;
+        width: 200px;
+        height: 30px;
+        font-size: 12px;
+        line-height: 30px;
+        padding-left: 14px;
+        color: #4a4a4a;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      #web .ctl span {
+        height: 36px;
+        color: #333;
+      }
+      #web .bar {
+        height: 40px;
+        background: #f7f8fa;
+        border-bottom: 1px solid #e1e3e6;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 14px;
+        color: #5f6368;
+        font-size: 16px;
+      }
+      #web .url {
+        flex: 1;
+        height: 28px;
+        border-radius: 14px;
+        background: #e9ecf0;
+        font-size: 13px;
+        line-height: 28px;
+        padding-left: 16px;
+        color: #202124;
+      }
+      #web .url em {
+        font-style: normal;
+        color: #5f6368;
+      }
+      #web .page {
+        position: absolute;
+        top: 77px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+      }
+      #web nav {
+        width: 196px;
+        background: #fafafa;
+        border-right: 1px solid #e8e8e8;
+        font-size: 12.5px;
+        padding-top: 14px;
+        color: #364149;
+      }
+      #web nav div {
+        padding: 4px 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #web nav .on {
+        color: #008cff;
+      }
+      #web nav .sub {
+        padding-left: 28px;
+      }
+      #web article {
+        flex: 1;
+        padding: 10px 34px 0 32px;
+        font-family: "Open Sans", "Noto Sans", "DejaVu Sans", sans-serif;
+        font-size: 14.5px;
+        line-height: 1.62;
+      }
+      #web h1 {
+        font-size: 25px;
+        margin: 6px 0 10px;
+        font-weight: 600;
+      }
+      #web h2 {
+        font-size: 19px;
+        margin: 14px 0 6px;
+        font-weight: 600;
+      }
+      #web p {
+        margin: 0 0 10px;
+      }
+      #web code {
+        font-family: "Source Code Pro", "DejaVu Sans Mono", monospace;
+        font-size: 13px;
+        background: #f6f7f6;
+        padding: 0 3px;
+        border-radius: 3px;
+      }
+      #web pre {
+        margin: 0 0 10px;
+        padding: 10px 14px;
+        background: #f6f7f6;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      #web pre code {
+        padding: 0;
+      }
+      #web .sel {
+        background: #3a8ee6;
+        color: #ffffff;
+      }
+      #web .kw { color: #8959a8; }
+      #web .st { color: #718c00; }
+
+      /* ---- Windows Terminal ---- */
+      #term {
+        left: 12px;
+        top: 532px;
+        width: 784px;
+        height: 308px;
+        background: #0c0c0c;
+        color: #cccccc;
+      }
+      #term .strip {
+        height: 34px;
+        background: #1c1c1c;
+        position: relative;
+      }
+      #term .tab {
+        position: absolute;
+        left: 8px;
+        top: 5px;
+        height: 29px;
+        width: 230px;
+        background: #0c0c0c;
+        border-radius: 7px 7px 0 0;
+        font-size: 12px;
+        line-height: 29px;
+        padding-left: 34px;
+        box-sizing: border-box;
+        color: #e6e6e6;
+      }
+      #term .tab::before {
+        content: ">_";
+        position: absolute;
+        left: 10px;
+        top: 0;
+        font-size: 11px;
+        color: #9ac8ff;
+        font-family: monospace;
+      }
+      #term .plus {
+        position: absolute;
+        left: 248px;
+        top: 6px;
+        color: #aaa;
+        font-size: 16px;
+      }
+      #term .ctl span {
+        height: 34px;
+        color: #ddd;
+      }
+      #term pre {
+        margin: 0;
+        padding: 6px 10px;
+        font-size: 13px;
+        line-height: 15.5px;
+      }
+      #term .e { color: #f14c4c; font-weight: bold; }
+      #term .b { color: #3b8eea; font-weight: bold; }
+      #term .y { color: #e5e510; }
+      #term .w { color: #ffffff; font-weight: bold; }
+      #term .p { color: #3a96dd; }
+      #term .cursor {
+        background: #cccccc;
+      }
+
+      /* ---- Taskbar ---- */
+      #taskbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 48px;
+        background: rgba(28, 30, 38, 0.92);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      #taskbar .apps {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+      }
+      #taskbar .app {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        margin-top: 4px;
+        border-radius: 5px;
+        display: grid;
+        place-items: center;
+      }
+      #taskbar .app.run::after {
+        content: "";
+        position: absolute;
+        bottom: 1px;
+        left: 17px;
+        width: 6px;
+        height: 3px;
+        border-radius: 2px;
+        background: #9a9a9a;
+      }
+      #taskbar .app.fg {
+        background: rgba(255, 255, 255, 0.07);
+      }
+      #taskbar .app.fg::after {
+        left: 13px;
+        width: 14px;
+        background: #4cc2ff;
+      }
+      .start {
+        width: 22px;
+        height: 22px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2px;
+      }
+      .start i {
+        background: linear-gradient(135deg, #5fd0ff, #1a83e8);
+        border-radius: 1px;
+      }
+      .ico {
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+      }
+      #taskbar .tray {
+        position: absolute;
+        right: 14px;
+        top: 6px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: #f0f0f0;
+        font-size: 12px;
+      }
+      #taskbar .clock {
+        text-align: right;
+        line-height: 17px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- VS Code -->
+    <div class="win" id="ide" data-anchor="ide">
+      <div class="title">main.rs — ownership — Visual Studio Code</div>
+      <span class="logo"></span>
+      <span class="menu">File Edit Selection View Go Run Terminal Help</span>
+      <div class="ctl" style="color: #ccc"><span>—</span><span>☐</span><span>✕</span></div>
+      <div class="act"><i></i><i></i><i></i><i></i></div>
+      <div class="side">
+        <div class="h">EXPLORER</div>
+        <div>⌄ OWNERSHIP</div>
+        <div style="padding-left: 22px">› .vscode</div>
+        <div style="padding-left: 22px">⌄ src</div>
+        <div class="on" style="padding-left: 40px"><span class="m">◆</span> main.rs</div>
+        <div style="padding-left: 22px">› target</div>
+        <div style="padding-left: 22px">.gitignore</div>
+        <div style="padding-left: 22px">Cargo.lock</div>
+        <div style="padding-left: 22px">Cargo.toml</div>
+        <div class="h" style="position: absolute; bottom: 30px">› OUTLINE</div>
+        <div class="h" style="position: absolute; bottom: 4px">› TIMELINE</div>
+      </div>
+      <div class="editor">
+        <div class="tabs"><span class="on"><span class="m">◆</span> main.rs</span><span>Cargo.toml</span></div>
+        <div class="crumbs">src › main.rs › ⬡ main</div>
+        <pre class="mono">
+<div><b>1</b><span class="c">use</span> <span class="t">std</span>::<span class="t">collections</span>::<span class="t">HashMap</span>;</div><div><b>2</b></div><div><b>3</b><span class="k">fn</span> <span class="f">main</span>() {</div><div><b>4</b>    <span class="k">let</span> <span class="v">r</span>;</div><div><b>5</b>    {</div><div><b>6</b>        <span class="k">let</span> <span class="v">x</span> = <span class="n">5</span>;</div><div class="cur"><b>7</b>        <span data-anchor="line7"><span class="v">r</span> = <span class="squig">&amp;<span class="v">x</span></span>;</span></div><div><b>8</b>    }</div><div><b>9</b>    <span class="f">println!</span>(<span class="s">"r: {r}"</span>);</div><div><b>10</b></div><div><b>11</b>    <span class="k">let</span> <span class="v">scores</span> = <span class="f">load_scores</span>();</div><div><b>12</b>    <span data-anchor="line12"><span class="k">let</span> <span class="v">best</span> = <span class="v">scores</span>.<span class="f">get</span>(<span class="s">"alice"</span>).<span class="f">copied</span>().<span class="f">unwrap</span>();</span></div><div><b>13</b>    <span class="k">let</span> <span class="v">total</span>: <span class="t">u32</span> = <span class="v">scores</span>.<span class="f">values</span>().<span class="f">sum</span>();</div><div><b>14</b>    <span data-anchor="line14"><span class="k">let</span> <span class="v">avg</span> = <span class="v">total</span> / <span class="v">scores</span>.<span class="f">len</span>() <span class="k">as</span> <span class="t">u32</span>;</span></div><div><b>15</b>    <span class="f">println!</span>(<span class="s">"best {best}, avg {avg}"</span>);</div><div><b>16</b>}</div><div><b>17</b></div><div><b>18</b><span class="k">fn</span> <span class="f">load_scores</span>() -&gt; <span class="t">HashMap</span>&lt;&amp;<span class="k">'static</span> <span class="t">str</span>, <span class="t">u32</span>&gt; {</div><div><b>19</b>    <span class="t">HashMap</span>::<span class="f">from</span>([(<span class="s">"alice"</span>, <span class="n">92</span>), (<span class="s">"bob"</span>, <span class="n">78</span>)])</div><div><b>20</b>}</div></pre>
+      </div>
+      <div class="status">
+        <span class="remote">⌥</span>⎇ main <span class="err">⊗ 1</span> ⚠ 0
+        <span class="r">Ln 7, Col 13   Spaces: 4   UTF-8   CRLF   Rust</span>
+      </div>
+    </div>
+
+    <!-- Browser -->
+    <div class="win" id="web" data-anchor="web">
+      <div class="strip">
+        <div class="tab">References and Borrowing - The Rust Programming Language</div>
+        <div class="tab2">Rust Playground</div>
+        <div class="ctl"><span>—</span><span>☐</span><span>✕</span></div>
+      </div>
+      <div class="bar">
+        <span>←</span><span>→</span><span>⟳</span>
+        <div class="url">doc.rust-lang.org<em>/book/ch04-02-references-and-borrowing.html</em></div>
+        <span>☆</span><span>⋯</span>
+      </div>
+      <div class="page">
+        <nav>
+          <div>3. Common Programming Concepts</div>
+          <div>4. Understanding Ownership</div>
+          <div class="sub">4.1. What is Ownership?</div>
+          <div class="sub on">4.2. References and Borrowing</div>
+          <div class="sub">4.3. The Slice Type</div>
+          <div>5. Using Structs</div>
+          <div>6. Enums and Pattern Matching</div>
+          <div>7. Packages, Crates, and Modules</div>
+          <div>8. Common Collections</div>
+          <div>9. Error Handling</div>
+          <div>10. Generic Types, Traits, and Lifetimes</div>
+          <div>11. Writing Automated Tests</div>
+          <div>12. An I/O Project</div>
+          <div>13. Iterators and Closures</div>
+          <div>14. More about Cargo</div>
+          <div>15. Smart Pointers</div>
+          <div>16. Fearless Concurrency</div>
+        </nav>
+        <article>
+          <h1>References and Borrowing</h1>
+          <p>
+            A <em>reference</em> is like a pointer in that it’s an address we can follow to access the data stored at
+            that address; that data is owned by some other variable. Unlike a pointer, a reference is guaranteed to
+            point to a valid value of a particular type for the life of that reference.
+          </p>
+          <h2>Dangling References</h2>
+          <p>
+            In languages with pointers, it’s easy to create a <em>dangling pointer</em> by freeing some memory while
+            preserving a pointer to it. In Rust, by contrast, the compiler — through the
+            <span class="sel" data-anchor="selection">borrow checker</span> — guarantees that references will never be
+            dangling: the data will not go out of scope before the reference to it does.
+          </p>
+          <pre><code><span class="kw">fn</span> dangle() -&gt; &amp;String {
+    <span class="kw">let</span> s = String::from(<span class="st">"hello"</span>);
+    &amp;s <span style="color: #8e908c">// s is dropped here</span>
+}</code></pre>
+          <h2>The Rules of References</h2>
+          <p>
+            At any given time, you can have <em>either</em> one mutable reference <em>or</em> any number of immutable
+            references. References must always be valid.
+          </p>
+        </article>
+      </div>
+    </div>
+
+    <!-- Windows Terminal -->
+    <div class="win" id="term" data-anchor="term">
+      <div class="strip">
+        <div class="tab">PowerShell</div>
+        <span class="plus">+ ⌄</span>
+        <div class="ctl"><span>—</span><span>☐</span><span>✕</span></div>
+      </div>
+      <pre class="mono"><span class="p">PS C:\dev\ownership&gt;</span> cargo build
+<span class="w">   Compiling</span> ownership v0.1.0 (C:\dev\ownership)
+<span data-anchor="error"><span class="e">error[E0597]</span><span class="w">: `x` does not live long enough</span></span>
+<span class="b"> --&gt; </span>src\main.rs:7:13
+<span class="b">  |</span>
+<span class="b">6 |</span>         let x = 5;
+<span class="b">  |             - </span><span class="b">binding `x` declared here</span>
+<span class="b">7 |</span>         r = &amp;x;
+<span class="b">  |</span>             <span class="e">^^ borrowed value does not live long enough</span>
+<span class="b">8 |</span>     }
+<span class="b">  |     - </span><span class="b">`x` dropped here while still borrowed</span>
+<span class="b">9 |</span>     println!("r: {r}");
+<span class="b">  |                  --- borrow later used here</span>
+
+<span class="e">error</span><span class="w">: could not compile `ownership` (bin "ownership") due to 1 previous error</span>
+<span class="p">PS C:\dev\ownership&gt;</span> <span class="cursor"> </span></pre>
+    </div>
+
+    <!-- Taskbar -->
+    <div id="taskbar">
+      <div class="apps">
+        <div class="app"><div class="start"><i></i><i></i><i></i><i></i></div></div>
+        <div class="app"><div class="ico" style="border: 2px solid #ddd; border-radius: 50%; width: 16px; height: 16px"></div></div>
+        <div class="app run"><div class="ico" style="background: linear-gradient(#ffd75e, #e8a317)"></div></div>
+        <div class="app run"><div class="ico" style="border-radius: 50%; background: conic-gradient(#36c76f, #1aa3e8, #2560e0, #36c76f)"></div></div>
+        <div class="app run fg"><div class="ico" style="background: #2f8fe0"></div></div>
+        <div class="app run"><div class="ico" style="background: #2b2b2b; border: 1px solid #777"></div></div>
+      </div>
+      <div class="tray">
+        <span>⌃</span><span>ENG</span><span>◔ ♪ ▮</span>
+        <div class="clock">10:42<br />2026/10/15</div>
+      </div>
+    </div>
+  </body>
+</html>
