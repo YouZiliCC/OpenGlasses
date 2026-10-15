@@ -419,9 +419,14 @@ pub async fn open_settings(app: AppHandle) {
         return;
     }
     win(&app).settings_ready.store(false, Ordering::SeqCst);
+    // The frontend draws the title bar (og-titlebar). Undecorated + shadow keeps Win11's
+    // rounded corners and shadow; Tauri adds the resize borders for undecorated windows.
     let built = WebviewWindowBuilder::new(&app, SETTINGS, WebviewUrl::App("settings.html".into()))
         .title("OpenGlasses Settings")
         .inner_size(820.0, 600.0)
+        .min_inner_size(720.0, 520.0)
+        .decorations(false)
+        .shadow(true)
         .resizable(true)
         .center()
         .build();
