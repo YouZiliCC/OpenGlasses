@@ -1,0 +1,64 @@
+[package]
+name = "openglasses"
+version = "0.1.0"
+description = "AR-style AI overlay for your desktop"
+authors = ["YouZiliCC"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.95"
+
+[lib]
+name = "openglasses_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.4", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2.4.1"
+tauri-plugin-single-instance = "2.5.4"
+tauri-plugin-store = "2.5.0"
+tauri-plugin-clipboard-manager = "2.5.0"
+tauri-plugin-opener = "2.7.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-util = "0.7.20"
+futures-util = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "json", "http2"] }
+eventsource-stream = "0.2.3"
+xcap = { version = "0.9.8", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+fast_image_resize = { version = "6.1", features = ["image"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+nvml-wrapper = "0.13"
+keyring = "4.2"
+base64 = "0.23"
+uuid = { version = "1", features = ["v4"] }
+log = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Accessibility",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
