@@ -200,9 +200,11 @@ const commands: Handlers = {
   },
   get_settings: () => settings,
   save_settings: ({ settings: next }) => {
+    const replay = next.theme !== settings.theme || next.animSpeed !== settings.animSpeed;
     Object.assign(settings, next);
     syncControls();
     emitAll("og://settings", settings);
+    if (replay) replayBoot();
     return { hotkeyErrors: {} };
   },
   set_api_key: ({ id }) => void keys.add(id),
@@ -429,7 +431,13 @@ pick.theme.onchange = pick.speed.onchange = () => {
   settings.animSpeed = pick.speed.value as Settings["animSpeed"];
   syncControls();
   emitAll("og://settings", settings);
+  replayBoot();
 };
+
+/** Like actions::apply_settings: a theme/speed switch replays the boot (unless Lens-On is off). */
+function replayBoot() {
+  if (settings.lensOn) emit(LENS, "og://lens-on", { frames: bootFrames });
+}
 pick.scenario.onchange = () => {
   syncControls();
   void play(pick.scenario.value);

@@ -81,7 +81,12 @@ export async function initTheme(want: ThemeWant | null) {
   }
   ready = true;
   apply();
-  await Promise.race([loading, new Promise((done) => setTimeout(done, 1000))]);
+  await themeSettled();
+}
+
+/** Resolves once the theme CSS being applied has loaded (or failed), at most 1 s. */
+export function themeSettled(): Promise<void> {
+  return Promise.race([loading, new Promise((done) => setTimeout(done, 1000))]).then(() => undefined);
 }
 
 /** Boot stage length for the current theme and speed, ms (DESIGN §10.5). */

@@ -19,6 +19,7 @@ import type {
   ToastEvent,
 } from "../shared/ipc";
 import * as geo from "./geometry";
+import { themeSettled } from "../shared/themeLoader";
 
 export interface LensSession {
   id: string;
@@ -200,7 +201,10 @@ export function onToast(t: ToastEvent) {
 }
 
 /** Mount the boot stage (DESIGN §10.5); LensOn ends it bootMs × speed after it mounts. */
-export function onLensOn(ev: LensOnEvent) {
+export async function onLensOn(ev: LensOnEvent) {
+  // On a theme switch og://settings arrives just before this and starts loading the new CSS:
+  // mount the stage only once it is in, so the replay never starts in the old look.
+  await themeSettled();
   set({ lensOn: ev, lensOnSeq: get().lensOnSeq + 1 });
 }
 

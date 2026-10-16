@@ -517,10 +517,17 @@ pub fn set_glasses(app: &AppHandle, on: bool) {
 /// `save_settings`: persist, re-register hotkeys, apply content protection + glass mode,
 /// broadcast `og://settings`; returns hotkey errors.
 pub fn apply_settings(app: &AppHandle, s: Settings) -> Result<SaveSettingsResult, String> {
+    let old = state::settings(app);
     settings::save(app, &s)?;
     let hotkey_errors = hotkeys::register_all(app, &s, glasses_on(app));
     windows::set_content_protected_all(app, s.exclude_from_capture);
     windows::apply_glass_mode(app, s.glass);
     let _ = app.emit(ev::SETTINGS, &s);
+    // A new theme (or speed) replays the boot so the change is shown right away. The lens
+    // mounts the stage only once the new theme's CSS has loaded (og://settings goes first).
+    if (old.theme != s.theme || old.anim_speed != s.anim_speed) && s.lens_on && glasses_on(app) {
+        let app = app.clone();
+        std::thread::spawn(move || capture::play_lens_on(&app));
+    }
     Ok(SaveSettingsResult { hotkey_errors })
 }
