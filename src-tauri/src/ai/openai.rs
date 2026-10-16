@@ -5,16 +5,16 @@ use super::{merge_patch, stream_error, AiError, Parsed, Req, Stop};
 use crate::types::Role;
 use serde_json::{json, Value};
 
-pub(super) fn request(c: &reqwest::Client, r: &Req, stream: bool) -> reqwest::RequestBuilder {
+pub(super) fn request(c: &reqwest::Client, r: &Req) -> reqwest::RequestBuilder {
     let url = format!("{}/chat/completions", r.base_url.trim_end_matches('/'));
-    let b = c.post(url).json(&body(r, stream));
+    let b = c.post(url).json(&body(r));
     match &r.key {
         Some(k) => b.bearer_auth(k),
         None => b, // keyless local servers (Ollama…)
     }
 }
 
-fn body(r: &Req, stream: bool) -> Value {
+fn body(r: &Req) -> Value {
     let mut messages = Vec::with_capacity(r.turns.len() + 1);
     if !r.system.is_empty() {
         messages.push(json!({"role": "system", "content": r.system}));
@@ -29,10 +29,8 @@ fn body(r: &Req, stream: bool) -> Value {
             (Role::Assistant, _) => json!({"role": "assistant", "content": t.text}),
         });
     }
-    let mut b = json!({"model": r.model, "messages": messages, "max_tokens": r.max_tokens, "stream": stream});
-    if stream {
-        b["stream_options"] = json!({"include_usage": true});
-    }
+    let mut b = json!({"model": r.model, "messages": messages, "max_tokens": r.max_tokens, "stream": true,
+        "stream_options": {"include_usage": true}});
     if let Some(extra) = &r.extra {
         merge_patch(&mut b, extra);
     }
@@ -63,13 +61,4 @@ pub(super) fn feed(data: &str, p: &mut Parsed) -> Result<Option<String>, AiError
         };
     }
     Ok(c["delta"]["content"].as_str().filter(|s| !s.is_empty()).map(str::to_owned))
-}
-
-/// Text of a non-streaming reply (`test_provider`).
-pub(super) fn reply_text(v: &Value) -> Result<String, AiError> {
-    let c = &v["choices"][0];
-    if c["finish_reason"] == "content_filter" {
-        return Err(AiError::new("DECLINED", "blocked by the provider's content filter"));
-    }
-    Ok(c["message"]["content"].as_str().unwrap_or("").to_string())
 }

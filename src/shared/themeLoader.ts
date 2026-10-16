@@ -10,7 +10,7 @@ export type ThemeWant = Pick<Settings, "theme" | "animSpeed">;
 interface ThemeState extends ThemesEvent {
   /** What this window wants: its settings, or the settings draft (live preview). */
   want: ThemeWant;
-  /** The theme in effect; null = none found (base.css only). */
+  /** The theme in effect; null = the wanted id is not installed (base.css only). */
   current: ThemeInfo | null;
 }
 
@@ -24,17 +24,12 @@ export const useTheme = create<ThemeState>()(() => ({
 let ready = false;
 let loading: Promise<unknown> = Promise.resolve();
 
-/** settings.theme -> "terminal" -> the first one -> none. */
-function pick(themes: ThemeInfo[], id: string): ThemeInfo | null {
-  return themes.find((t) => t.id === id) ?? themes.find((t) => t.id === "terminal") ?? themes[0] ?? null;
-}
-
 function apply() {
   if (!ready) return;
   const { themes, want } = useTheme.getState();
-  const t = pick(themes, want.theme);
+  const t = themes.find((x) => x.id === want.theme) ?? null;
   const root = document.documentElement;
-  root.style.setProperty("--og-speed", String(SPEED_FACTOR[want.animSpeed] ?? 1));
+  root.style.setProperty("--og-speed", String(SPEED_FACTOR[want.animSpeed]));
   let link = document.getElementById("og-theme") as HTMLLinkElement | null;
   if (t) {
     if (!link) {
@@ -63,7 +58,7 @@ export function setTheme(want: ThemeWant) {
   apply();
 }
 
-/** og://themes and list/reload replies; an older revision never replaces a newer one. */
+/** og://themes and the list_themes reply; an older revision never replaces a newer one. */
 export function onThemes(ev: ThemesEvent) {
   if (ev.rev < useTheme.getState().rev) return;
   useTheme.setState({ themes: ev.themes, rev: ev.rev });
@@ -72,13 +67,9 @@ export function onThemes(ev: ThemesEvent) {
 
 /** Startup, before the first render: list the themes, link the chosen one and wait (≤ 1 s)
  * for its CSS, so the window never flashes the base look. */
-export async function initTheme(want: ThemeWant | null) {
-  if (want) useTheme.setState({ want: { theme: want.theme, animSpeed: want.animSpeed } });
-  try {
-    onThemes(await call("list_themes"));
-  } catch (e) {
-    console.error("list_themes", e);
-  }
+export async function initTheme(want: ThemeWant) {
+  useTheme.setState({ want: { theme: want.theme, animSpeed: want.animSpeed } });
+  onThemes(await call("list_themes"));
   ready = true;
   apply();
   await themeSettled();
@@ -92,5 +83,5 @@ export function themeSettled(): Promise<void> {
 /** Boot stage length for the current theme and speed, ms (DESIGN §10.5). */
 export function bootDuration(): number {
   const { current, want } = useTheme.getState();
-  return (current?.bootMs ?? 1000) * (SPEED_FACTOR[want.animSpeed] ?? 1);
+  return (current?.bootMs ?? 1000) * SPEED_FACTOR[want.animSpeed];
 }

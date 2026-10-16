@@ -71,24 +71,14 @@ pub fn drop_frame(app: &AppHandle, url: &str) {
     st(app).capture.frames.lock().unwrap().remove(key);
 }
 
-/// Capture one monitor with xcap (GDI) on the calling worker thread, excluding our overlays
-/// (`windows::without_overlays_in_capture`).
+/// Capture the monitor under the lens centre with xcap (GDI) on the calling worker thread,
+/// excluding our overlays (`windows::without_overlays_in_capture`).
 pub fn grab_monitor(app: &AppHandle, lens: &LensInfo) -> Result<Shot, String> {
-    let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
-    let geom = |m: &xcap::Monitor| -> Option<PhysRect> {
-        Some(PhysRect { x: m.x().ok()?, y: m.y().ok()?, w: m.width().ok()? as i32, h: m.height().ok()? as i32 })
-    };
-    let (cx, cy) = (lens.bounds.x + lens.bounds.w / 2, lens.bounds.y + lens.bounds.h / 2);
-    let mon = monitors
-        .iter()
-        .find(|m| geom(m) == Some(lens.bounds))
-        .or_else(|| monitors.iter().find(|m| m.name().is_ok_and(|n| n == lens.monitor)))
-        .or_else(|| monitors.iter().find(|m| geom(m).is_some_and(|r| r.contains(cx, cy))))
-        .ok_or_else(|| format!("no monitor for {}", lens.monitor))?;
-    let origin = geom(mon).ok_or("monitor geometry unavailable")?;
+    let b = lens.bounds;
+    let mon = xcap::Monitor::from_point(b.x + b.w / 2, b.y + b.h / 2).map_err(|e| e.to_string())?;
+    let (x, y) = (mon.x().map_err(|e| e.to_string())?, mon.y().map_err(|e| e.to_string())?);
     let img = windows::without_overlays_in_capture(app, || mon.capture_image()).map_err(|e| e.to_string())?;
-    let bounds = PhysRect { x: origin.x, y: origin.y, w: img.width() as i32, h: img.height() as i32 };
-    Ok(Shot { img, bounds })
+    Ok(Shot { bounds: PhysRect { x, y, w: img.width() as i32, h: img.height() as i32 }, img })
 }
 
 /// Snapshot glass from a shot: downscale to 1/8, darken/tint, JPEG q70, `put_frame`.
@@ -152,7 +142,6 @@ fn lens_on_frames(app: &AppHandle, lens: &LensInfo) -> Result<Vec<Vec<u8>>, Stri
 /// Enter SELECT on `lens`: capture, emit `og://freeze {url,imgW,imgH}` (JPEG q85 full size),
 /// hide the panel, `windows::set_lens_interactive(on)`, `hotkeys::set_escape(true)`.
 pub fn begin_select(app: &AppHandle, lens: &LensInfo) -> Result<(), String> {
-    finish_select(app, "", None); // a stale SELECT (any lens) is cancelled first
     let shot = grab_monitor(app, lens)?;
     let (img_w, img_h) = shot.img.dimensions();
     let url = put_frame(app, "image/jpeg", jpeg(&shot.img, 85)?);
@@ -225,8 +214,7 @@ pub fn finish_select(app: &AppHandle, caller_lens: &str, sel: Option<(Rect, f64,
 pub fn crop(shot: &Shot, r: PhysRect) -> Option<image::RgbaImage> {
     let r = r.intersect(&shot.bounds)?;
     let (x, y) = ((r.x - shot.bounds.x) as u32, (r.y - shot.bounds.y) as u32);
-    let out = image::imageops::crop_imm(&shot.img, x, y, r.w as u32, r.h as u32).to_image();
-    (out.width() > 0 && out.height() > 0).then_some(out)
+    Some(image::imageops::crop_imm(&shot.img, x, y, r.w as u32, r.h as u32).to_image())
 }
 
 /// Every pixel exactly (0,0,0) (DRM / protected content).

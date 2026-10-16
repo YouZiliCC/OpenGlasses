@@ -9,12 +9,9 @@ use std::sync::OnceLock;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use windows::core::{w, Owned, PCWSTR, PWSTR};
-use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, POINT, RECT};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-use windows::Win32::Graphics::Gdi::{
-    DeleteEnhMetaFile, GetEnhMetaFileBits, GetMonitorInfoW, MonitorFromPoint, SetEnhMetaFileBits, HENHMETAFILE, MONITORINFO,
-    MONITOR_DEFAULTTONEAREST,
-};
+use windows::Win32::Graphics::Gdi::{DeleteEnhMetaFile, GetEnhMetaFileBits, SetEnhMetaFileBits, HENHMETAFILE};
 use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::DataExchange::{
@@ -40,7 +37,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_MENU, VK_RWIN, VK_SHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DestroyWindow, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowRect, GetWindowTextW,
+    CreateWindowExW, DestroyWindow, GetClassNameW, GetForegroundWindow, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsIconic, IsWindow, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE,
 };
 
@@ -63,8 +60,8 @@ const SNAPSHOT_BUDGET: Duration = Duration::from_millis(200);
 const MAX_FORMAT_BYTES: usize = 16 << 20;
 const COPY_WAIT: Duration = Duration::from_millis(250);
 const OPEN_RETRY: Duration = Duration::from_millis(100);
-/// Longer retry used only to put the user's clipboard back after our copy replaced it.
-const RESTORE_RETRY: Duration = Duration::from_secs(1);
+/// Longer retry after our copy replaced the user's clipboard: the read and the restore need it open.
+const READ_RETRY: Duration = Duration::from_secs(1);
 
 /// Ctrl+C would interrupt a running command in these when nothing is selected.
 const CTRL_INSERT_PROCESSES: [&str; 7] = [
@@ -225,20 +222,17 @@ type UiaHit = Option<(String, Option<PhysRect>)>;
 static UIA_BUSY: AtomicBool = AtomicBool::new(false);
 
 fn uia_selection() -> UiaHit {
-    static UIA: OnceLock<Option<Sender<Sender<UiaHit>>>> = OnceLock::new();
+    static UIA: OnceLock<Sender<Sender<UiaHit>>> = OnceLock::new();
     if UIA_BUSY.swap(true, Ordering::AcqRel) {
         return None;
     }
     let tx = UIA.get_or_init(|| {
         let (tx, rx) = mpsc::channel();
-        let spawned = std::thread::Builder::new().name("og-uia".into()).spawn(move || uia_thread(rx));
-        spawned.ok().map(|_| tx)
+        std::thread::Builder::new().name("og-uia".into()).spawn(move || uia_thread(rx)).expect("spawn og-uia");
+        tx
     });
     let (reply_tx, reply_rx) = mpsc::channel();
-    if !tx.as_ref().is_some_and(|tx| tx.send(reply_tx).is_ok()) {
-        UIA_BUSY.store(false, Ordering::Release);
-        return None;
-    }
+    let _ = tx.send(reply_tx);
     // On timeout the UIA thread stays busy until its call returns; grabs meanwhile skip UIA.
     reply_rx.recv_timeout(UIA_WAIT).ok().flatten()
 }
@@ -246,11 +240,8 @@ fn uia_selection() -> UiaHit {
 /// The one long-lived MTA thread that owns the UIA client.
 fn uia_thread(rx: Receiver<Sender<UiaHit>>) {
     let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-    let mut automation: Option<IUIAutomation2> = None;
+    let automation = unsafe { new_automation() }.ok();
     for reply in rx {
-        if automation.is_none() {
-            automation = unsafe { new_automation() }.ok();
-        }
         let hit = automation.as_ref().and_then(|a| unsafe { focused_selection(a) }.ok());
         UIA_BUSY.store(false, Ordering::Release);
         let _ = reply.send(hit);
@@ -294,8 +285,8 @@ unsafe fn focused_selection(a: &IUIAutomation2) -> windows::core::Result<(String
     Ok((text, anchor))
 }
 
-/// Union of the ranges' bounding rects (SAFEARRAY of f64 x,y,w,h quadruples, physical px),
-/// clipped to the cursor's monitor.
+/// Union of the UIA selection ranges' bounding rects (SAFEARRAY of f64 x,y,w,h quadruples,
+/// physical px).
 unsafe fn selection_rect(ranges: &[IUIAutomationTextRange]) -> Option<PhysRect> {
     let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     for range in ranges {
@@ -322,20 +313,7 @@ unsafe fn selection_rect(ranges: &[IUIAutomationTextRange]) -> Option<PhysRect> 
         return None;
     }
     let (l, t) = (x0.floor() as i32, y0.floor() as i32);
-    let union = PhysRect { x: l, y: t, w: x1.ceil() as i32 - l, h: y1.ceil() as i32 - t };
-    match cursor_monitor() {
-        Some(m) => union.intersect(&m),
-        None => Some(union),
-    }
-}
-
-fn cursor_monitor() -> Option<PhysRect> {
-    unsafe {
-        let mut pt = POINT::default();
-        GetCursorPos(&mut pt).ok()?;
-        let mut mi = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
-        GetMonitorInfoW(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool().then(|| phys(mi.rcMonitor))
-    }
+    Some(PhysRect { x: l, y: t, w: x1.ceil() as i32 - l, h: y1.ceil() as i32 - t })
 }
 
 // ---------------------------------------------------------------- clipboard fallback
@@ -360,12 +338,7 @@ fn clipboard_selection(src: &SourceInfo) -> Result<String, &'static str> {
         sleep(Duration::from_millis(5));
     }
     // From here the user's clipboard has been replaced, so the restore is mandatory.
-    let Some(_open) = open_clipboard(win.0, OPEN_RETRY) else {
-        if let Some(_open) = open_clipboard(win.0, RESTORE_RETRY) {
-            unsafe { restore(&saved) };
-        }
-        return Err("NO SELECTION");
-    };
+    let _open = open_clipboard(win.0, READ_RETRY).ok_or("NO SELECTION")?;
     let text = unsafe { read_unicode_text() }.unwrap_or_default();
     unsafe { restore(&saved) };
     Ok(text)

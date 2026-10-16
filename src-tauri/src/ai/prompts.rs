@@ -37,8 +37,7 @@ pub(super) fn system(kind: Kind, answer_language: &str) -> String {
         Kind::Image => IMAGE_TASK,
         Kind::Scan => SCAN_TASK,
     };
-    let lang = answer_language.trim();
-    let lang_rule = if lang.is_empty() || lang.eq_ignore_ascii_case("auto") {
+    let lang_rule = if answer_language == "auto" {
         format!(
             "Language: answer in the language of the screen content (the selection, or the text \
 in the image), not the language of these instructions. If it contains no natural language (only \
@@ -47,7 +46,7 @@ question in the language it is asked in.",
             ui_language()
         )
     } else {
-        format!("Language: always answer in {lang}.")
+        format!("Language: always answer in {answer_language}.")
     };
     format!("{ROLE} {task}\n\n{FORMAT}\n\n{lang_rule}\n\n{DATA_RULE}")
 }
@@ -70,7 +69,7 @@ pub(super) fn first_user(
         format!("<context app=\"{}\"{title}/>\n", attr(&s.process))
     });
     match kind {
-        Kind::Text => format!("{ctx}<selection>\n{}\n</selection>", defuse_close_tag(&clip_selection(text))),
+        Kind::Text => format!("{ctx}<selection>\n{}\n</selection>", defuse_close_tag(text)),
         Kind::Image => format!("{ctx}Explain this screenshot region."),
         Kind::Scan => {
             let (w, h) = image.map_or((0, 0), |i| (i.w, i.h));
@@ -91,23 +90,11 @@ If nothing stands out, reply {{\"items\":[]}}."
     }
 }
 
-/// > 4000 chars: keep the head 3000 + "…" + the tail 1000.
-fn clip_selection(s: &str) -> String {
-    let n = s.chars().count();
-    if n <= 4000 {
-        return s.to_string();
-    }
-    let head: String = s.chars().take(3000).collect();
-    let tail: String = s.chars().skip(n - 1000).collect();
-    format!("{head}…{tail}")
-}
-
 fn attr(s: &str) -> String {
     s.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// BCP-47 tag of the Windows UI language, e.g. "zh-CN".
-#[cfg(windows)]
 fn ui_language() -> String {
     use windows::Win32::Globalization::{GetUserDefaultUILanguage, LCIDToLocaleName};
     let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH
@@ -118,11 +105,6 @@ fn ui_language() -> String {
     } else {
         "en-US".into()
     }
-}
-
-#[cfg(not(windows))]
-fn ui_language() -> String {
-    "en-US".into()
 }
 
 /// One scan item as the model returned it (box still in model coordinates).

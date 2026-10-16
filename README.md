@@ -45,7 +45,7 @@ Themes are hot-swappable **theme packs**: a folder with `theme.json`, `theme.css
 | **Holo Blue** | JARVIS-style ice-blue HUD, chamfered panels, arc tick rings | Putting on glasses: sharp inside the lenses, blurred outside, then the whole screen comes into focus |
 | **Cyber Neon** | Magenta and cyan neon, a one-shot glitch when answers appear | Neon power-on: RGB split, collapse to a line, then the desktop expands back |
 
-Switch themes and the animation speed (Fast / Normal / Slow) under Settings → Appearance. To install a community theme, drop its folder into `%APPDATA%\io.github.youzilicc.openglasses\themes\` (or click **Open themes folder**). Edits to a theme's files apply live, with no restart.
+Switch themes and the animation speed (Fast / Normal / Slow) under Settings → Appearance. To install a community theme, drop its folder into `%APPDATA%\OpenGlasses\themes\` (or click **Open themes folder**). Edits to a theme's files apply live, with no restart.
 
 **Making a theme:** read [`docs/THEMES.md`](docs/THEMES.md). You can preview the lens, the panel and the settings windows in any browser on any OS with [`dev/preview/`](dev/preview/README.md), no Windows needed.
 

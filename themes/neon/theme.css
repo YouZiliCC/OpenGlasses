@@ -69,7 +69,6 @@
 .md th,
 .og-titlebar-title,
 .set-brand,
-.set-loading,
 .tab,
 .sec h3,
 .btn {
@@ -923,10 +922,6 @@
   background:
     radial-gradient(120% 70% at 100% 0, rgba(255, 43, 214, 0.08), transparent 60%),
     radial-gradient(90% 60% at 0 100%, rgba(25, 240, 255, 0.05), transparent 60%);
-}
-.set-loading {
-  font-family: var(--og-font-display);
-  letter-spacing: 0.14em;
 }
 
 .og-titlebar {

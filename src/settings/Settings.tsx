@@ -3,14 +3,11 @@ import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction
 import { create } from "zustand";
 import { call } from "../shared/bridge";
 import type { AnimSpeed, BboxFormat, GlassMode, HotkeyAction, HudCorners, Provider, Settings, Style } from "../shared/ipc";
-import { onThemes, setTheme, useTheme } from "../shared/themeLoader";
+import { setTheme, useTheme } from "../shared/themeLoader";
 import { TitleBar } from "./TitleBar";
 
-/** Last settings known to be persisted (get_settings, og://settings or our own save). */
-export const useSaved = create<{ saved: Settings | null; loadError: string | null }>()(() => ({
-  saved: null,
-  loadError: null,
-}));
+/** Last settings known to be persisted (frontend_ready, og://settings or our own save). */
+export const useSaved = create<{ saved: Settings | null }>()(() => ({ saved: null }));
 
 type Tab = "providers" | "hotkeys" | "appearance" | "behavior";
 const TABS: Tab[] = ["providers", "hotkeys", "appearance", "behavior"];
@@ -50,16 +47,13 @@ const SPEEDS: [AnimSpeed, string][] = [
 ];
 
 export function SettingsApp() {
-  const { saved, loadError } = useSaved();
-  // The title bar is always there: it is the only way to move or close this window.
+  // main.tsx renders only once the settings are in.
+  const saved = useSaved((s) => s.saved)!;
+  // Our own title bar: it is the only way to move or close this window.
   return (
     <div className="set">
       <TitleBar />
-      {saved ? (
-        <Editor saved={saved} />
-      ) : (
-        <div className="set-loading">{loadError ? <span className="warn">⚠ {loadError}</span> : "LOADING…"}</div>
-      )}
+      <Editor saved={saved} />
     </div>
   );
 }
@@ -192,7 +186,7 @@ function finalProvider(p: Provider, extraText: string): { provider: Provider | n
 function build(d: Settings, extra: Record<string, string>): { settings: Settings | null; problem: string | null } {
   const providers: Provider[] = [];
   for (const p of d.providers) {
-    const r = finalProvider(p, extra[p.id] ?? "");
+    const r = finalProvider(p, extra[p.id]);
     if (!r.provider) return { settings: null, problem: `${p.name}: invalid extra body (${r.error})` };
     providers.push(r.provider);
   }
@@ -225,11 +219,10 @@ function Providers({
   extra: Record<string, string>;
   setExtra: Dispatch<SetStateAction<Record<string, string>>>;
 }) {
-  const p = draft.providers.find((x) => x.id === draft.activeProviderId) ?? draft.providers[0];
-  if (!p) return <div className="dim">No provider slots.</div>;
+  const p = draft.providers.find((x) => x.id === draft.activeProviderId)!;
   const upd = (patch: Partial<Provider>) =>
     setDraft((d) => ({ ...d, providers: d.providers.map((x) => (x.id === p.id ? { ...x, ...patch } : x)) }));
-  const text = extra[p.id] ?? "";
+  const text = extra[p.id];
   const { provider, error } = finalProvider(p, text);
   const deepseek = /deepseek/i.test(p.id + p.name);
   return (
@@ -384,22 +377,12 @@ function Hotkeys({ draft, setDraft, errors }: { draft: Settings; setDraft: SetDr
 /** Theme packs (DESIGN §10.7): picking one previews it in this window at once; Save applies it everywhere. */
 function ThemePicker({ draft, setDraft }: { draft: Settings; setDraft: SetDraft }) {
   const themes = useTheme((s) => s.themes);
-  const [msg, setMsg] = useState<{ text: string; warn: boolean } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const t = themes.find((x) => x.id === draft.theme);
-  const run = (p: Promise<string>) => {
-    setMsg(null);
-    p.then(
-      (text) => setMsg({ text, warn: false }),
-      (e) => setMsg({ text: `⚠ ${String(e)}`, warn: true }),
-    );
+  const openFolder = () => {
+    setErr(null);
+    call("open_themes_folder").catch((e) => setErr(String(e)));
   };
-  const reload = () =>
-    run(
-      call("reload_themes").then((ev) => {
-        onThemes(ev);
-        return `${ev.themes.length} theme${ev.themes.length === 1 ? "" : "s"} found`;
-      }),
-    );
   return (
     <Section title="Theme · previewed here, applied everywhere on Save">
       <select value={draft.theme} onChange={(e) => setDraft((d) => ({ ...d, theme: e.target.value }))}>
@@ -418,17 +401,14 @@ function ThemePicker({ draft, setDraft }: { draft: Settings; setDraft: SetDraft 
             {t.description}
           </>
         ) : (
-          "Not installed: a fallback theme is shown instead"
+          "Not installed: the base look is shown"
         )}
       </div>
       <div className="inline" style={{ marginTop: 8 }}>
-        <button className="btn" onClick={() => run(call("open_themes_folder").then(() => ""))}>
+        <button className="btn" onClick={openFolder}>
           OPEN THEMES FOLDER
         </button>
-        <button className="btn" onClick={reload}>
-          RELOAD THEMES
-        </button>
-        {msg?.text && <span className={msg.warn ? "warn" : "dim"}>{msg.text}</span>}
+        {err && <span className="warn">⚠ {err}</span>}
       </div>
     </Section>
   );

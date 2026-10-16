@@ -12,8 +12,8 @@ use eventsource_stream::Eventsource;
 use futures_util::StreamExt;
 use serde_json::{Map, Value};
 use std::collections::VecDeque;
-use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -46,7 +46,7 @@ pub struct AiState {
 pub struct NewSession {
     pub kind: Kind,
     pub lens: LensInfo,
-    pub anchor: Option<Rect>,
+    pub anchor: Rect,
     pub cursor: Point,
     pub glass: Option<Glass>,
     /// Text shown as messages[0] (selection text, or a short caption for image/scan).
@@ -74,17 +74,15 @@ const BATCH: Duration = Duration::from_millis(40);
 const IDLE: Duration = Duration::from_secs(30);
 const HISTORY_MAX: usize = 10;
 
-/// Start a session with the current settings' style + provider: emit `start` (dismissing any
+/// Start a session with the current settings' style + provider: emit `start` (closing any
 /// previous session first), set HUD mode, spawn the request. Returns the session id.
 pub fn start(app: &AppHandle, ns: NewSession) -> String {
-    dismiss_active(app);
     let s = state::settings(app);
     let provider = settings::active_provider(&s);
     let id = uuid::Uuid::new_v4().to_string();
-    let text = if ns.source_text.is_empty() { &ns.preview } else { &ns.source_text };
     let first_user = prompts::first_user(
         ns.kind,
-        text,
+        &ns.preview,
         ns.source.as_ref(),
         s.include_window_title,
         ns.image.as_ref(),
@@ -127,8 +125,8 @@ pub fn start(app: &AppHandle, ns: NewSession) -> String {
         system: prompts::system(ns.kind, &s.answer_language),
         first_user,
     };
-    // A concurrent start may have slipped in after dismiss_active: close it too.
-    let old = lock(&ai(app).active).replace(active);
+    // Replacing the active session closes the previous one.
+    let old = ai(app).active.lock().unwrap().replace(active);
     if let Some(old) = old {
         close(app, old);
     }
@@ -145,7 +143,7 @@ pub fn followup(app: &AppHandle, id: &str, text: String) -> Result<(), String> {
         return Err("EMPTY".into());
     }
     let (lens, k, cancel) = {
-        let mut g = lock(&ai(app).active);
+        let mut g = ai(app).active.lock().unwrap();
         let a = g.as_mut().filter(|a| a.view.id == id).ok_or("NO SESSION")?;
         if a.view.streaming {
             return Err("BUSY".into());
@@ -168,20 +166,22 @@ pub fn followup(app: &AppHandle, id: &str, text: String) -> Result<(), String> {
 /// panel (restoring focus to the source window). Returns true if something was dismissed.
 pub fn dismiss(app: &AppHandle, id: &str) -> bool {
     let taken = {
-        let mut g = lock(&ai(app).active);
+        let mut g = ai(app).active.lock().unwrap();
         if g.as_ref().is_some_and(|a| a.view.id == id) { g.take() } else { None }
     };
     taken.map(|a| close(app, a)).is_some()
 }
 
 /// Dismiss whatever is active (no-op if none).
-pub fn dismiss_active(app: &AppHandle) -> bool {
-    let taken = lock(&ai(app).active).take();
-    taken.map(|a| close(app, a)).is_some()
+pub fn dismiss_active(app: &AppHandle) {
+    let taken = ai(app).active.lock().unwrap().take();
+    if let Some(a) = taken {
+        close(app, a);
+    }
 }
 
 pub fn pin(app: &AppHandle, id: &str, pinned: bool) {
-    if let Some(a) = lock(&ai(app).active).as_mut().filter(|a| a.view.id == id) {
+    if let Some(a) = ai(app).active.lock().unwrap().as_mut().filter(|a| a.view.id == id) {
         a.view.pinned = pinned;
     }
 }
@@ -189,7 +189,7 @@ pub fn pin(app: &AppHandle, id: &str, pinned: bool) {
 /// Mark the active session stale (emit `stale` once): brackets/leader lines hide.
 pub fn mark_stale(app: &AppHandle) {
     let hit = {
-        let mut g = lock(&ai(app).active);
+        let mut g = ai(app).active.lock().unwrap();
         match g.as_mut().filter(|a| !a.stale) {
             Some(a) => {
                 a.stale = true;
@@ -204,7 +204,7 @@ pub fn mark_stale(app: &AppHandle) {
 }
 
 pub fn active_meta(app: &AppHandle) -> Option<ActiveMeta> {
-    lock(&ai(app).active).as_ref().map(|a| ActiveMeta {
+    ai(app).active.lock().unwrap().as_ref().map(|a| ActiveMeta {
         id: a.view.id.clone(),
         kind: a.view.kind,
         style: a.view.style,
@@ -216,56 +216,47 @@ pub fn active_meta(app: &AppHandle) -> Option<ActiveMeta> {
     })
 }
 
-/// Frontend view of the active session (for InitState).
-pub fn snapshot(app: &AppHandle) -> Option<Session> {
-    lock(&ai(app).active).as_ref().map(|a| a.view.clone())
-}
-
 pub fn history(app: &AppHandle) -> Vec<HistoryEntry> {
-    lock(&ai(app).history).iter().cloned().collect()
+    ai(app).history.lock().unwrap().iter().cloned().collect()
 }
 
-/// Minimal non-streaming-equivalent request ("Reply with OK") using the given draft provider
-/// (key from keyring). Ok(model reply snippet) or Err(error code + message).
+/// "Reply with exactly: OK" through the same streaming path as a session, using the given
+/// draft provider (key from keyring). Ok(model reply snippet) or Err(error code + message).
 pub async fn test_provider(app: &AppHandle, p: Provider) -> Result<String, String> {
-    let proxy = state::settings(app).proxy;
-    let kind = p.kind;
-    let fail = |e: AiError| format!("{}: {}", e.code, e.message);
-    let req = Req {
-        key: api_key(&p).map_err(fail)?,
-        base_url: p.base_url,
-        model: p.model,
-        system: String::new(),
-        turns: vec![Turn { role: Role::User, text: "Reply with exactly: OK".into(), raw: None }],
-        image: None,
-        max_tokens: 16,
-        extra: p.extra_body,
+    let mut job = Job {
+        req: Req {
+            base_url: p.base_url.clone(),
+            model: p.model.clone(),
+            key: None,
+            system: String::new(),
+            turns: vec![Turn { role: Role::User, text: "Reply with exactly: OK".into(), raw: None }],
+            image: None,
+            max_tokens: 16,
+            extra: p.extra_body.clone(),
+        },
+        provider: p,
+        kind: Kind::Text,
+        lens: String::new(),
+        proxy: state::settings(app).proxy,
     };
-    let client = client(&req.base_url, proxy.as_deref()).map_err(fail)?;
-    let builder = match kind {
-        ProviderKind::Openai => openai::request(&client, &req, false),
-        ProviderKind::Anthropic => anthropic::request(&client, &req, false),
+    let mut sink = Sink {
+        app,
+        id: "",
+        idx: 1,
+        silent: true,
+        text: String::new(),
+        pending: String::new(),
+        last_emit: None,
+        sent: Instant::now(),
+        first: None,
+        last: None,
     };
-    let fut = async {
-        let resp = builder.send().await.map_err(|e| net_error(&e))?;
-        let status = resp.status();
-        let body = resp.text().await.map_err(|e| net_error(&e))?;
-        if !status.is_success() {
-            return Err(http_error(status, &body));
-        }
-        let v: Value = serde_json::from_str(&body)
-            .map_err(|_| AiError::new("HTTP 200", clip(body.trim(), 200)))?;
-        match kind {
-            ProviderKind::Openai => openai::reply_text(&v),
-            ProviderKind::Anthropic => anthropic::reply_text(&v),
-        }
-    };
-    let text = tokio::time::timeout(first_byte_timeout(&req.base_url), fut)
+    let mut parsed = Parsed::default();
+    stream(&mut job, &mut sink, &mut parsed)
         .await
-        .map_err(|_| AiError::new("TIMEOUT", "no response"))
-        .and_then(|r| r)
-        .map_err(fail)?;
-    let text = text.trim();
+        .and_then(|()| refusal(&parsed))
+        .map_err(|e| format!("{}: {}", e.code, e.message))?;
+    let text = sink.text.trim();
     Ok(if text.is_empty() { "(connected, empty reply)".into() } else { clip(text, 80) })
 }
 
@@ -355,22 +346,10 @@ pub(super) fn stream_error(e: &Value) -> AiError {
     AiError::new(code, clip(message, 200))
 }
 
-/// Lowercase host of a base URL ("" if unparseable).
-pub(super) fn host(base_url: &str) -> String {
-    reqwest::Url::parse(base_url.trim())
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.trim_matches(['[', ']']).to_ascii_lowercase()))
-        .unwrap_or_default()
-}
-
 // ---------------------------------------------------------------- session internals
 
 fn ai(app: &AppHandle) -> &AiState {
     &st(app).inner().ai
-}
-
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn msg(role: Role, text: &str) -> Message {
@@ -384,7 +363,7 @@ fn emit(app: &AppHandle, lens: &str, ev: SessionEvent) {
 
 /// Run `f` on the active session if it is still `id` and not cancelled; also returns its lens.
 fn with_active<R>(app: &AppHandle, id: &str, f: impl FnOnce(&mut Active) -> R) -> Option<(String, R)> {
-    let mut g = lock(&ai(app).active);
+    let mut g = ai(app).active.lock().unwrap();
     let a = g.as_mut().filter(|a| a.view.id == id && !a.cancel.is_cancelled())?;
     let r = f(a);
     Some((a.view.lens.clone(), r))
@@ -395,7 +374,7 @@ fn close(app: &AppHandle, a: Active) {
     a.cancel.cancel();
     emit(app, &a.view.lens, SessionEvent::Dismiss { id: a.view.id.clone() });
     if let Some(e) = history_entry(&a.view) {
-        let mut h = lock(&ai(app).history);
+        let mut h = ai(app).history.lock().unwrap();
         h.push_front(e);
         h.truncate(HISTORY_MAX);
     }
@@ -415,32 +394,7 @@ fn history_entry(v: &Session) -> Option<HistoryEntry> {
     if text.trim().is_empty() {
         return None;
     }
-    let created_at = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64);
-    Some(HistoryEntry { id: v.id.clone(), kind: v.kind, tldr: tldr(&text), text, created_at })
-}
-
-/// First non-empty prose line, Markdown stripped, ≤120 chars (cf. src/shared/tldr.ts).
-fn tldr(text: &str) -> String {
-    let mut in_block = false;
-    for line in text.lines().map(str::trim) {
-        if line.starts_with("```") || line.starts_with("$$") {
-            if !(line.starts_with("$$") && line.len() > 2 && line.ends_with("$$")) {
-                in_block = !in_block;
-            }
-            continue;
-        }
-        if in_block {
-            continue;
-        }
-        let l = line.trim_start_matches('#').trim_start();
-        let l = l.strip_prefix(['-', '*', '+', '>']).filter(|r| r.starts_with(' ')).unwrap_or(l);
-        let plain = l.replace("**", "").replace("__", "").replace('`', "");
-        let plain = plain.trim();
-        if !plain.is_empty() {
-            return clip(plain, 120);
-        }
-    }
-    String::new()
+    Some(HistoryEntry { id: v.id.clone(), kind: v.kind, text })
 }
 
 fn clip(s: &str, max: usize) -> String {
@@ -454,17 +408,13 @@ fn clip(s: &str, max: usize) -> String {
 
 // ---------------------------------------------------------------- requests
 
-fn is_local(base_url: &str) -> bool {
-    matches!(host(base_url).as_str(), "localhost" | "127.0.0.1" | "::1")
-}
-
 fn first_byte_timeout(base_url: &str) -> Duration {
-    Duration::from_secs(if is_local(base_url) { 90 } else { 30 })
+    Duration::from_secs(if settings::is_local_url(base_url) { 90 } else { 30 })
 }
 
 fn api_key(p: &Provider) -> Result<Option<String>, AiError> {
-    let key = settings::get_api_key(&p.id).filter(|k| !k.trim().is_empty());
-    if key.is_none() && !is_local(&p.base_url) {
+    let key = settings::get_api_key(&p.id);
+    if key.is_none() && !settings::is_local_url(&p.base_url) {
         return Err(AiError::new("NO API KEY", format!("No API key saved for {}", p.name)));
     }
     Ok(key)
@@ -475,9 +425,9 @@ fn client(base_url: &str, proxy: Option<&str>) -> Result<reqwest::Client, AiErro
     let mut b = reqwest::Client::builder()
         .user_agent(concat!("OpenGlasses/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::none());
-    if is_local(base_url) {
+    if settings::is_local_url(base_url) {
         b = b.no_proxy();
-    } else if let Some(p) = proxy.map(str::trim).filter(|p| !p.is_empty()) {
+    } else if let Some(p) = proxy {
         let p = reqwest::Proxy::all(p).map_err(|e| AiError::new("NETWORK", format!("invalid proxy: {e}")))?;
         b = b.proxy(p);
     }
@@ -495,18 +445,12 @@ fn status_code(s: u16) -> String {
 /// Non-2xx response: code from the status, message from the JSON error body when possible.
 fn http_error(status: reqwest::StatusCode, body: &str) -> AiError {
     let v: Value = serde_json::from_str(body).unwrap_or(Value::Null);
-    let e = v.get("error").unwrap_or(&v);
-    let message = e["message"]
+    let b = body.trim();
+    let message = v["error"]["message"]
         .as_str()
-        .or(e.as_str())
-        .or(v["message"].as_str())
-        .or(v["detail"].as_str())
-        .map(str::to_owned)
-        .unwrap_or_else(|| {
-            let b = body.trim();
-            if b.is_empty() || b.starts_with('<') { status.canonical_reason().unwrap_or("").into() } else { b.into() }
-        });
-    AiError::new(status_code(status.as_u16()), clip(&message, 200))
+        .or(v["error"].as_str())
+        .unwrap_or(if b.is_empty() { status.canonical_reason().unwrap_or("") } else { b });
+    AiError::new(status_code(status.as_u16()), clip(message, 200))
 }
 
 fn net_error(e: &reqwest::Error) -> AiError {
@@ -519,7 +463,7 @@ fn net_error(e: &reqwest::Error) -> AiError {
     AiError::new(if e.is_timeout() { "TIMEOUT" } else { "NETWORK" }, clip(&message, 200))
 }
 
-/// Request + routing info gathered from the active session under the lock.
+/// Request + routing info, gathered from the active session under the lock (or a Test draft).
 struct Job {
     req: Req,
     provider: Provider,
@@ -530,7 +474,7 @@ struct Job {
 
 fn job(app: &AppHandle, id: &str, idx: usize) -> Option<Job> {
     let s = state::settings(app);
-    let g = lock(&ai(app).active);
+    let g = ai(app).active.lock().unwrap();
     let a = g.as_ref().filter(|a| a.view.id == id && !a.cancel.is_cancelled())?;
     let p = &a.provider;
     let mut turns = vec![Turn { role: Role::User, text: a.first_user.clone(), raw: None }];
@@ -544,7 +488,7 @@ fn job(app: &AppHandle, id: &str, idx: usize) -> Option<Job> {
     }
     let model = match a.view.kind {
         Kind::Text => p.model.clone(),
-        _ => p.vision_model.clone().filter(|m| !m.trim().is_empty()).unwrap_or_else(|| p.model.clone()),
+        _ => p.vision_model.clone().unwrap_or_else(|| p.model.clone()),
     };
     Some(Job {
         req: Req {
@@ -569,7 +513,7 @@ struct Sink<'a> {
     app: &'a AppHandle,
     id: &'a str,
     idx: usize,
-    /// Scan's first answer: buffer only, no deltas.
+    /// Buffer only, no deltas (scan's first answer, Test).
     silent: bool,
     text: String,
     pending: String,
@@ -641,19 +585,7 @@ async fn run(app: AppHandle, id: String, idx: usize, cancel: CancellationToken) 
         _ = cancel.cancelled() => return,
         r = stream(&mut job, &mut sink, &mut parsed) => r,
     };
-    if cancel.is_cancelled() {
-        return;
-    }
-    let result = result.and_then(|()| match parsed.stop {
-        Stop::Refused => Err(AiError::new(
-            "DECLINED",
-            match &parsed.detail {
-                Some(c) => format!("The model declined to answer ({c})."),
-                None => "The model declined to answer.".into(),
-            },
-        )),
-        _ => Ok(()),
-    });
+    let result = result.and_then(|()| refusal(&parsed));
     if let Err(e) = result {
         sink.flush();
         if !sink.silent && !sink.text.is_empty() {
@@ -702,13 +634,27 @@ async fn run(app: AppHandle, id: String, idx: usize, cancel: CancellationToken) 
     }
 }
 
+/// A refused answer is an error (DECLINED), with the provider's category when given.
+fn refusal(parsed: &Parsed) -> Result<(), AiError> {
+    if parsed.stop != Stop::Refused {
+        return Ok(());
+    }
+    Err(AiError::new(
+        "DECLINED",
+        match &parsed.detail {
+            Some(c) => format!("The model declined to answer ({c})."),
+            None => "The model declined to answer.".into(),
+        },
+    ))
+}
+
 /// Send the request and pump SSE events into `sink`/`parsed` until the stream ends.
 async fn stream(job: &mut Job, sink: &mut Sink<'_>, parsed: &mut Parsed) -> Result<(), AiError> {
     job.req.key = api_key(&job.provider)?;
     let client = client(&job.req.base_url, job.proxy.as_deref())?;
     let builder = match job.provider.kind {
-        ProviderKind::Openai => openai::request(&client, &job.req, true),
-        ProviderKind::Anthropic => anthropic::request(&client, &job.req, true),
+        ProviderKind::Openai => openai::request(&client, &job.req),
+        ProviderKind::Anthropic => anthropic::request(&client, &job.req),
     };
     sink.sent = Instant::now();
     let resp = tokio::time::timeout(first_byte_timeout(&job.req.base_url), builder.send())

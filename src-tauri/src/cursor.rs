@@ -98,7 +98,7 @@ impl Tracker {
             self.reported = None;
             return;
         };
-        let Some(src) = meta.source.as_ref().filter(|s| s.hwnd != 0) else { return };
+        let Some(src) = meta.source.as_ref() else { return };
         if self.reported.as_deref() == Some(meta.id.as_str()) {
             return;
         }

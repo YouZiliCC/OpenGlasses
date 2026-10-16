@@ -2,7 +2,7 @@
 //! Headers: x-api-key, anthropic-version: 2023-06-01. Never send thinking/temperature/top_p.
 //! Replay assistant content blocks verbatim (incl. thinking + signature) on follow-ups.
 
-use super::{host, merge_patch, stream_error, AiError, Parsed, Req, Stop};
+use super::{merge_patch, stream_error, AiError, Parsed, Req, Stop};
 use crate::types::Role;
 use serde_json::{json, Value};
 
@@ -10,14 +10,14 @@ use serde_json::{json, Value};
 const FALLBACK_MODELS: [&str; 4] = ["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"];
 const FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
-pub(super) fn request(c: &reqwest::Client, r: &Req, stream: bool) -> reqwest::RequestBuilder {
+pub(super) fn request(c: &reqwest::Client, r: &Req) -> reqwest::RequestBuilder {
     let base = r.base_url.trim_end_matches('/');
-    let base = base.strip_suffix("/v1").unwrap_or(base);
-    let fallbacks = FALLBACK_MODELS.contains(&r.model.as_str()) && host(&r.base_url) == "api.anthropic.com";
+    let fallbacks = FALLBACK_MODELS.contains(&r.model.as_str())
+        && reqwest::Url::parse(&r.base_url).is_ok_and(|u| u.host_str() == Some("api.anthropic.com"));
     let mut b = c
         .post(format!("{base}/v1/messages"))
         .header("anthropic-version", "2023-06-01")
-        .json(&body(r, stream, fallbacks));
+        .json(&body(r, fallbacks));
     if let Some(k) = &r.key {
         b = b.header("x-api-key", k);
     }
@@ -27,7 +27,7 @@ pub(super) fn request(c: &reqwest::Client, r: &Req, stream: bool) -> reqwest::Re
     b
 }
 
-fn body(r: &Req, stream: bool, fallbacks: bool) -> Value {
+fn body(r: &Req, fallbacks: bool) -> Value {
     let messages: Vec<Value> = r
         .turns
         .iter()
@@ -46,7 +46,7 @@ fn body(r: &Req, stream: bool, fallbacks: bool) -> Value {
             Role::Assistant => json!({"role": "assistant", "content": t.raw.clone().unwrap_or_else(|| json!(t.text))}),
         })
         .collect();
-    let mut b = json!({"model": r.model, "max_tokens": r.max_tokens, "messages": messages, "stream": stream});
+    let mut b = json!({"model": r.model, "max_tokens": r.max_tokens, "messages": messages, "stream": true});
     if !r.system.is_empty() {
         b["system"] = json!(r.system);
     }
@@ -65,13 +65,7 @@ pub(super) fn feed(data: &str, p: &mut Parsed) -> Result<Option<String>, AiError
     let Ok(v) = serde_json::from_str::<Value>(data) else { return Ok(None) };
     let index = v["index"].as_u64().unwrap_or(0) as usize;
     match v["type"].as_str().unwrap_or("") {
-        "content_block_start" => {
-            let block = v["content_block"].clone();
-            match index.cmp(&p.blocks.len()) {
-                std::cmp::Ordering::Less => p.blocks[index] = block,
-                _ => p.blocks.push(block),
-            }
-        }
+        "content_block_start" => p.blocks.push(v["content_block"].clone()),
         "content_block_delta" => {
             let (d, Some(b)) = (&v["delta"], p.blocks.get_mut(index)) else { return Ok(None) };
             let (key, text) = match d["type"].as_str().unwrap_or("") {
@@ -130,13 +124,4 @@ pub(super) fn replay_blocks(blocks: Vec<Value>) -> Option<Value> {
         .map(|(_, b)| b)
         .collect();
     kept.iter().any(|b| b["type"] == "text").then_some(Value::Array(kept))
-}
-
-/// Text of a non-streaming reply (`test_provider`).
-pub(super) fn reply_text(v: &Value) -> Result<String, AiError> {
-    if v["stop_reason"] == "refusal" {
-        return Err(AiError::new("DECLINED", "the model declined the request"));
-    }
-    let blocks = v["content"].as_array().map(Vec::as_slice).unwrap_or_default();
-    Ok(blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect())
 }

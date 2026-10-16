@@ -30,7 +30,7 @@ async function boot() {
     on("og://themes", onThemes),
   ]);
   applyInit(await call("frontend_ready"));
-  await initTheme(useLens.getState().settings);
+  await initTheme(useLens.getState().settings!);
   createRoot(document.getElementById("root")!).render(<Lens />);
 }
 

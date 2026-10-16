@@ -84,20 +84,22 @@ fn mask_menu_key() {
 }
 
 /// (Re-)register hotkeys from settings. If `triggers` is false only `toggle` is registered
-/// (glasses off). A combo that fails keeps the previously registered combo for that action.
-/// Returns per-action error text, e.g. "Alt+Q is in use".
+/// (glasses off). Every held combo is released first; an action whose combo is invalid or
+/// taken is left without a hotkey. Returns per-action error text, e.g. "Alt+Q is in use".
 pub fn register_all(
     app: &AppHandle,
     s: &Settings,
     triggers: bool,
 ) -> BTreeMap<HotkeyAction, String> {
-    let _serial = REGISTERING.lock().unwrap_or_else(|e| e.into_inner());
+    let _serial = REGISTERING.lock().unwrap();
     let gs = app.global_shortcut();
-    let old = REGISTERED.lock().unwrap().clone();
-    let mut errors = BTreeMap::new();
+    let old = std::mem::take(&mut *REGISTERED.lock().unwrap());
+    for sc in old.values() {
+        let _ = gs.unregister(*sc);
+    }
 
-    // action -> (combo, text as typed)
-    let mut want = BTreeMap::new();
+    let mut now = BTreeMap::new();
+    let mut errors = BTreeMap::new();
     for a in ACTIONS {
         if !triggers && a != HotkeyAction::Toggle {
             continue;
@@ -106,35 +108,14 @@ pub fn register_all(
             continue;
         };
         match text.parse::<Shortcut>() {
-            Ok(sc) => {
-                want.insert(a, (sc, text.clone()));
+            Ok(sc) if gs.register(sc).is_ok() => {
+                now.insert(a, sc);
+            }
+            Ok(_) => {
+                errors.insert(a, format!("{text} is in use"));
             }
             Err(_) => {
                 errors.insert(a, INVALID.to_string());
-                if let Some(o) = old.get(&a) {
-                    want.insert(a, (*o, text.clone()));
-                }
-            }
-        }
-    }
-
-    // Release changed combos first so swapped combos can be taken by the other action.
-    for (a, sc) in &old {
-        if want.get(a).map(|w| w.0) != Some(*sc) {
-            let _ = gs.unregister(*sc);
-        }
-    }
-
-    let mut now = BTreeMap::new();
-    for (a, (sc, text)) in want {
-        if old.get(&a) == Some(&sc) || gs.register(sc).is_ok() {
-            now.insert(a, sc);
-            continue;
-        }
-        errors.insert(a, format!("{text} is in use"));
-        if let Some(o) = old.get(&a) {
-            if gs.register(*o).is_ok() {
-                now.insert(a, *o);
             }
         }
     }

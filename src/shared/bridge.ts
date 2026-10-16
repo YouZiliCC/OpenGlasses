@@ -16,7 +16,3 @@ export function call<K extends keyof CommandMap>(
 export function on<K extends keyof EventMap>(event: K, fn: (payload: EventMap[K]) => void): Promise<() => void> {
   return getCurrentWebviewWindow().listen<EventMap[K]>(event, (e) => fn(e.payload));
 }
-
-export function windowLabel(): string {
-  return getCurrentWebviewWindow().label;
-}

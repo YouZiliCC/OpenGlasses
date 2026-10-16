@@ -12,7 +12,6 @@ import type {
   LensOnEvent,
   Rect,
   ScanItem,
-  Session,
   SessionEvent,
   Settings,
   Style,
@@ -25,7 +24,6 @@ export interface LensSession {
   id: string;
   kind: Kind;
   style: Style;
-  /** Never null: falls back to a 24×18 box at the cursor. */
   anchor: Rect;
   glass: Glass | null;
   /** Answer msgIndex 1 only; follow-ups live in the panel. */
@@ -93,8 +91,6 @@ export function applyInit(init: InitState) {
     hud: cur.hud ?? init.hud,
     visible: init.glassesOn,
   });
-  const a = init.active;
-  if (a && a.lens === init.label && !cur.session) restore(a, init.panel?.id === a.id);
 }
 
 function showPanel(id: string, p: geo.PanelBox, itemKey: string | null = null) {
@@ -108,10 +104,10 @@ function patch(id: string, p: Partial<LensSession>) {
 type Start = Extract<SessionEvent, { type: "start" }>;
 
 /** Show the thinking state at once; Card, Rail and scan sessions open the panel right away. */
-function start(ev: Start, panelShown = false) {
+function start(ev: Start) {
   const work = workArea();
   const view = viewSize();
-  const anchor = ev.anchor ?? geo.cursorAnchor(ev.cursor);
+  const anchor = ev.anchor;
   let callout: geo.Placement | null = null;
   let rail: Rect | null = null;
   let panel: geo.PanelBox | null = null;
@@ -131,21 +127,14 @@ function start(ev: Start, panelShown = false) {
       error: null,
       items: null,
       stale: false,
-      expanded: panel !== null || panelShown,
+      expanded: panel !== null,
       item: null,
       callout,
       rail,
       closing: false,
     },
   });
-  if (panel && !panelShown) showPanel(ev.id, panel);
-}
-
-/** Re-attach to the active session after a webview reload. */
-function restore(a: Session, panelShown: boolean) {
-  const { id, kind, style, lens, anchor, cursor, glass } = a;
-  start({ type: "start", id, kind, style, lens, anchor, cursor, glass, preview: "" }, panelShown);
-  patch(id, { text: a.messages[1]?.text ?? "", streaming: a.streaming, error: a.error, items: a.items });
+  if (panel) showPanel(ev.id, panel);
 }
 
 export function onSession(ev: SessionEvent) {

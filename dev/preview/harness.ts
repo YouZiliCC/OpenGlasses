@@ -14,6 +14,7 @@ import type {
   Session,
   Settings,
   Style,
+  ThemeInfo,
   ThemesEvent,
 } from "../../src/shared/ipc";
 import { SPEED_FACTOR } from "../../src/shared/ipc";
@@ -30,26 +31,15 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 // ---- Themes: the repo's themes/ folder plays the built-in theme dir. Edits to theme.css hot
 // reload through Vite's own CSS HMR in each frame; a new theme folder reloads this page.
 
-type Manifest = { name?: string; author?: string; version?: string; description?: string; bootMs?: number };
+type Manifest = Pick<ThemeInfo, "name" | "author" | "version" | "description" | "bootMs">;
 const manifests = import.meta.glob<Manifest>("/themes/*/theme.json", { eager: true, import: "default" });
-let rev = 1;
 
 function listThemes(): ThemesEvent {
   const themes = Object.entries(manifests).map(([path, m]) => {
     const id = path.split("/")[2];
-    const boot = Number(m.bootMs);
-    return {
-      id,
-      name: m.name || id,
-      author: m.author ?? "",
-      version: m.version ?? "",
-      description: m.description ?? "",
-      bootMs: Number.isFinite(boot) && boot > 0 ? clamp(boot, 300, 4000) : 1000,
-      builtin: true,
-      cssUrl: `/themes/${id}/theme.css?v=${rev}`,
-    };
+    return { id, ...m, builtin: true, cssUrl: `/themes/${id}/theme.css` };
   });
-  return { themes, rev };
+  return { themes, rev: 1 };
 }
 
 // ---- State the Rust core would hold.
@@ -121,7 +111,7 @@ function dismiss() {
   panelReq = null;
 }
 
-function start(kind: Kind, style: Style, anchor: Rect | null, cursor: Point, glass: Glass | null, preview: string) {
+function start(kind: Kind, style: Style, anchor: Rect, cursor: Point, glass: Glass | null, preview: string) {
   dismiss();
   hidePanel();
   const id = `s${++seq}`;
@@ -158,7 +148,6 @@ async function stream(s: Session, msgIndex: number, text: string) {
   hud({ mode: "STREAM", ttftMs: 450 });
   for (let i = 0; i < text.length && live(); i += 9) {
     const chunk = text.slice(i, i + 9);
-    while (s.messages.length <= msgIndex) s.messages.push({ role: "assistant", text: "" });
     s.messages[msgIndex].text += chunk;
     emit([LENS, "panel"], "og://session", { type: "delta", id: s.id, msgIndex, text: chunk });
     await sleep(40);
@@ -188,17 +177,13 @@ const commands: Handlers = {
     r.done = true;
     r.resolve();
     return {
-      label: from,
       isPrimary: from === LENS,
       workArea: from === LENS ? data.WORK_AREA : null,
       settings,
       hud: from === LENS ? hudState : null,
-      active: session,
-      panel: panelReq,
       glassesOn: true,
     };
   },
-  get_settings: () => settings,
   save_settings: ({ settings: next }) => {
     const replay = next.theme !== settings.theme || next.animSpeed !== settings.animSpeed;
     Object.assign(settings, next);
@@ -258,12 +243,6 @@ const commands: Handlers = {
   open_settings: () => openSettings(),
   get_history: () => data.HISTORY,
   list_themes: listThemes,
-  reload_themes: () => {
-    rev++;
-    const t = listThemes();
-    emitAll("og://themes", t);
-    return t;
-  },
   open_themes_folder: () => void status("open_themes_folder: the preview reads the repo's themes/ folder"),
 };
 
@@ -363,7 +342,8 @@ async function play(name: string, wait = true) {
     }
     case "scan": {
       hud({ app: "Code.exe" });
-      const s = start("scan", settings.style, null, { x: 760, y: 290 }, glass, "[screenshot]");
+      // Rust anchors a scan on the foreground window (here the IDE).
+      const s = start("scan", settings.style, data.AT.ide, { x: 760, y: 290 }, glass, "[screenshot]");
       const done = sleep(900).then(() => {
         if (session !== s) return;
         s.items = data.SCAN_ITEMS;

@@ -16,9 +16,9 @@ export function LensOn() {
     return () => clearTimeout(t);
   }, [ev, seq]);
   if (!ev) return null;
-  const f = ev.frames?.length ? ev.frames : null;
+  const f = ev.frames;
   const vars = Object.fromEntries(
-    [0, 1, 2].map((i) => [`--og-frame-${i}`, f?.[i] ? `url("${f[i]}")` : "none"]),
+    [0, 1, 2].map((i) => [`--og-frame-${i}`, f ? `url("${f[i]}")` : "none"]),
   ) as CSSProperties;
   return (
     <div key={seq} className={f ? "og-boot" : "og-boot og-boot-noframes"} style={vars}>

@@ -168,27 +168,21 @@ export const SCAN_ITEMS: ScanItem[] = [
   },
 ];
 
-const now = Date.now();
+/** Newest first, as ai/mod.rs keeps it. */
 export const HISTORY: HistoryEntry[] = [
   {
     id: "h1",
     kind: "text",
-    tldr: "`Cow<'a, str>` borrows when it can and clones only when it must.",
     text: "`Cow<'a, str>` borrows when it can and clones only when it must.\n\nIt is an enum of `Borrowed(&'a str)` and `Owned(String)`; `to_mut()` clones on first write.",
-    createdAt: now - 26 * 60_000,
   },
   {
     id: "h2",
     kind: "image",
-    tldr: "The chart shows p99 latency doubling after the 14:00 deploy.",
     text: "The chart shows p99 latency doubling after the 14:00 deploy.\n\np50 is flat, so it is a tail problem: look at lock contention or GC pauses.",
-    createdAt: now - 3 * 3_600_000,
   },
   {
     id: "h3",
     kind: "text",
-    tldr: "幂等（idempotent）指同一操作执行一次和多次的效果相同。",
     text: "幂等（idempotent）指同一操作执行一次和多次的效果相同。\n\n例如 HTTP 的 `PUT` 和 `DELETE`；`POST` 一般不是。数学上 $f(f(x)) = f(x)$。",
-    createdAt: now - 26 * 3_600_000,
   },
 ];

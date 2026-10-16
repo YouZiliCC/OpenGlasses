@@ -278,7 +278,7 @@ settings   普通窗口，按需创建，关闭即销毁
    1. 等 Alt、Ctrl、Shift、Win 全部物理松开，最多等 400ms。超时后还有键按着：toast `RELEASE KEYS`，**不发送任何按键**。
    2. 在 grab 线程上建一个 `HWND_MESSAGE` 窗口，用它打开剪贴板。记下序列号，快照所有基于 HGLOBAL 的格式。单个格式超过 16MB、或快照总耗时超过 200ms 时，放弃回退，不动用户的剪贴板。
    3. 前台是终端或 VS Code 时发 **Ctrl+Insert**，其他程序发 Ctrl+C。终端和 VS Code 的判断依据：进程名是 WindowsTerminal.exe、OpenConsole.exe、conhost.exe、wezterm-gui.exe、alacritty.exe、mintty.exe、Code.exe 之一，或者窗口类是 ConsoleWindowClass、CASCADIA_HOSTING_WINDOW_CLASS。
-   4. 等序列号变化，最多 250ms。之后每 10ms 重试一次 `OpenClipboard`，最多重试 100ms，然后读取 `CF_UNICODETEXT`。
+   4. 等序列号变化，最多 250ms。之后每 10ms 重试一次 `OpenClipboard`，最多重试 1s，然后读取 `CF_UNICODETEXT`。
    5. **只有序列号确实变了**才恢复快照。恢复时附带 `ExcludeClipboardContentFromMonitorProcessing` 格式，这样恢复动作本身不会进剪贴板历史，也不会云同步。
    6. **已知限制**：被复制的选中文字本身会进入 Win+V 历史一次，Windows 没有办法阻止。README 里要说明。
 4. 两条路都失败：toast `NO SELECTION`。
@@ -371,7 +371,8 @@ ai/prompts.rs    system 提示词：explain / image / scan（静态文本，会�
 
 ### 3.7 设置与密钥（`settings.rs`）
 
-- **设置**：`settings.json` 放在 app config 目录，用 serde_json 读写，写入时先写临时文件再 rename。**不用** tauri-plugin-store。
+- **用户数据目录**：`%APPDATA%\OpenGlasses`，不使用 Tauri 默认的反向域名目录。WebView2 的缓存仍放在 Tauri 默认的 `%LOCALAPPDATA%\<identifier>`。
+- **设置**：`settings.json` 放在用户数据目录，用 serde_json 读写，写入时先写临时文件再 rename。**不用** tauri-plugin-store。
 - **API Key**：用 `keyring` 存进 Windows 凭据管理器，service 为 `openglasses`，user 为槽位 id。前端只能 set、has、delete，拿不到明文。
 - **设置窗口**分 4 个页签：
   - Providers：当前提供方，8 个槽位的 baseUrl、model、visionModel、extraBody、bboxFormat、Key，以及「Test」按钮。Test 用当前草稿测试，不要求先保存。
@@ -412,7 +413,6 @@ ai/prompts.rs    system 提示词：explain / image / scan（静态文本，会�
 
 ```
 frontend_ready() -> InitState
-get_settings() -> Settings
 save_settings({settings}) -> {hotkeyErrors}
 set_api_key({id,key})  has_api_key({id}) -> bool  delete_api_key({id})
 test_provider({provider}) -> string
@@ -465,7 +465,7 @@ OpenGlasses/
 
 | 依赖 | 版本 / 说明 |
 |---|---|
-| `tauri` | 2.12，开启 tray-icon、image-png |
+| `tauri` | 2.12，开启 tray-icon |
 | `tauri-plugin-global-shortcut` | 2.4 |
 | `tauri-plugin-single-instance` | 2.5 |
 | `tauri-plugin-clipboard-manager` | 2.5 |
@@ -564,16 +564,16 @@ OpenGlasses/
   "description": "Ice-blue holographic HUD. Boot: putting on glasses.", "bootMs": 1600 }
 ```
 
-`bootMs` 是开机动画在**正常速度**下的总时长，前端到时间后会移除开机舞台。如果缺失或不合法，取 1000，并限制在 300–4000 之间。
+`bootMs` 是开机动画在**正常速度**下的总时长，前端到时间后会移除开机舞台。五个字段都必须有；缺字段、类型错误或 `bootMs` 超出 300–4000 时，整个主题跳过。
 
 ### 10.3 发现与加载（`themes.rs`）
 
 - **扫描目录**：
   - 内置目录：`<resource_dir>/themes/`，由 tauri.conf.json 的 `bundle.resources` 把仓库里的 `themes/` 复制过去。
-  - 用户目录：`<app_config_dir>/themes/`，Windows 上是 `%APPDATA%\io.github.youzilicc.openglasses\themes`。
+  - 用户目录：`<用户数据目录>/themes/`，Windows 上是 `%APPDATA%\OpenGlasses\themes`。用户数据目录的规则见 §3.7。
   - 两个目录里 id 相同时，用户目录的主题覆盖内置主题。
-  - 清单解析失败的文件夹直接跳过，并写一条 log。
-- **`ogtheme` 协议**：URL 形如 `http://ogtheme.localhost/<id>/<相对路径>`，只能解析到该主题自己的文件夹内。以下情况一律返回 404：路径包含 `..`、反斜杠、绝对路径、不在白名单里的扩展名、文件超过 8MB。
+  - 清单不合法（见 §10.2）的文件夹直接跳过，并写一条 log。
+- **`ogtheme` 协议**：URL 形如 `http://ogtheme.localhost/<id>/r<rev>/<相对路径>`（`rev` 见下文热重载），只能解析到该主题自己的文件夹内。以下情况一律返回 404：路径包含 `..`、反斜杠、绝对路径、不在白名单里的扩展名、文件超过 8MB。
 - **响应头**：
   - `Content-Type`；
   - `Cache-Control: no-store`；
@@ -582,18 +582,17 @@ OpenGlasses/
 - **CSP**：`style-src`、`img-src`、`font-src` 三项都加入 `http://ogtheme.localhost`。`connect-src` 不变，主题没有任何网络能力。
 - **命令**：
   - `list_themes() -> ThemesEvent`
-  - `reload_themes() -> ThemesEvent`：强制重新扫描
   - `open_themes_folder()`：用 opener 打开用户主题目录，目录不存在时先创建
 
 ### 10.4 前端加载（`src/shared/themeLoader.ts`）
 
 - 三类窗口启动时都执行同样的步骤：
   1. 调用 `list_themes`；
-  2. 按 `settings.theme` 选出主题。找不到时依次退回到 `terminal`、列表里的第一个，最后退回到「无主题」；
+  2. 按 `settings.theme` 选出主题。找不到时不加载主题 CSS，只用基础样式（它本身就是终端绿光），跳过第 3、4 步；
   3. 插入 `<link id="og-theme" rel="stylesheet" href=cssUrl>`；
   4. 设置 `<html data-theme="<id>">`；
   5. 在根元素上设置 `--og-speed`：fast 为 0.6，normal 为 1，slow 为 1.6。
-- 收到 `og://settings`（主题或速度变了）或 `og://themes`（rev 变了）时，原地替换 `href`。`cssUrl` 带 `?v=<rev>`，保证浏览器重新拉取。
+- 收到 `og://settings`（主题或速度变了）或 `og://themes`（rev 变了）时，原地替换 `href`。`rev` 在 `cssUrl` 的路径里，所以浏览器会重新拉取 CSS 和它用相对 `url()` 引用的素材。
 - 基础样式 `src/shared/base.css`（由原 `theme.css` 改名）只使用 `--og-*` 令牌，并在 `:root` 里给出与终端绿光一致的默认值。主题 CSS 加载失败时，界面仍然可用。
 
 ### 10.5 主题 API（必须保持稳定，写入 `docs/THEMES.md`）
@@ -656,7 +655,7 @@ OpenGlasses/
 - **Appearance 页签新增**：
   - Theme 下拉框，显示名称、作者和描述，标注 Built-in / User；
   - Animation speed（Fast / Normal / Slow）；
-  - 「Open themes folder」和「Reload」两个按钮。
+  - 「Open themes folder」按钮。
 - **设置窗口去掉系统标题栏**：`decorations(false)`、`shadow(true)`（Win11 下保留圆角和阴影）、`resizable(true)`。
   - 自定义的 `og-titlebar` 组件包含：拖拽区（`data-tauri-drag-region`）、标题、最小化按钮和关闭按钮，样式随主题变化。
   - 新增一个只授予 `settings` 窗口的 capability：`core:window:allow-start-dragging`、`allow-minimize`、`allow-close`。lens 和 panel 拿不到这些权限。

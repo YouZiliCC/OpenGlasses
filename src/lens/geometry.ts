@@ -32,7 +32,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), M
 
 export const pathD = (pts: Point[]) => "M" + pts.map((p) => `${p.x} ${p.y}`).join("L");
 
-/** Stand-in anchor when there is no selection rect: 24×18 centred on the cursor. */
+/** A 24×18 box centred on the cursor (the scan card opens next to it). */
 export function cursorAnchor(p: Point): Rect {
   return { x: p.x - 12, y: p.y - 9, w: 24, h: 18 };
 }

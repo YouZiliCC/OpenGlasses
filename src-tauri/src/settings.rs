@@ -3,9 +3,8 @@
 //! DESIGN §3.5 (presets/extraBody) and §3.7.
 
 use crate::types::*;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -95,79 +94,27 @@ pub fn defaults() -> Settings {
     }
 }
 
-/// Load from the app config dir; missing/corrupt file -> defaults. Always returns exactly the
-/// 8 slots (fill missing slots from defaults, drop unknown ids).
+/// Load `%APPDATA%\OpenGlasses\settings.json`; a missing or invalid file -> defaults.
 pub fn load(app: &AppHandle) -> Settings {
-    let user = config_path(app, SETTINGS_FILE)
-        .ok()
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<Value>(&b).ok());
-    match user {
-        Some(Value::Object(user)) => merge(&user),
-        _ => defaults(),
+    let Some(b) = config_path(app, SETTINGS_FILE).ok().and_then(|p| std::fs::read(p).ok()) else {
+        return defaults();
+    };
+    match serde_json::from_slice::<Settings>(&b) {
+        Ok(s) if valid(&s) => s,
+        Ok(_) => {
+            log::warn!("settings.json: unknown activeProviderId, using defaults");
+            defaults()
+        }
+        Err(e) => {
+            log::warn!("settings.json ignored: {e}");
+            defaults()
+        }
     }
 }
 
-/// Overlay a user's (possibly partial / outdated) settings object onto the defaults.
-/// A field that would not deserialize keeps its default.
-fn merge(user: &Map<String, Value>) -> Settings {
-    let d = defaults();
-    let mut base = serde_json::to_value(&d).expect("defaults serialize");
-    overlay::<Settings>(&mut base, user, &["providers"]);
-
-    let user_slots = user.get("providers").and_then(Value::as_array);
-    let providers = d
-        .providers
-        .iter()
-        .map(|p| {
-            let found = user_slots.and_then(|a| {
-                a.iter()
-                    .filter_map(Value::as_object)
-                    .find(|u| u.get("id").and_then(Value::as_str) == Some(p.id.as_str()))
-            });
-            let Some(u) = found else { return p.clone() };
-            // id/name/kind are fixed per slot; only the editable fields come from the file.
-            let mut v = serde_json::to_value(p).expect("provider serializes");
-            overlay::<Provider>(&mut v, u, &["id", "name", "kind"]);
-            serde_json::from_value(v).unwrap_or_else(|_| p.clone())
-        })
-        .collect();
-
-    let mut s: Settings = serde_json::from_value(base).unwrap_or(d);
-    s.providers = providers;
-    if !s.providers.iter().any(|p| p.id == s.active_provider_id) {
-        s.active_provider_id = defaults().active_provider_id;
-    }
-    s
-}
-
-/// Copy `user`'s values for the keys `base` already has (except `skip`), one key at a time,
-/// keeping a key only if `base` still deserializes as `T`. Nested objects (hotkeys, hudCorners)
-/// merge one level; `extraBody` is replaced as a whole.
-fn overlay<T: DeserializeOwned>(base: &mut Value, user: &Map<String, Value>, skip: &[&str]) {
-    let keys: Vec<String> = base
-        .as_object()
-        .map(|o| o.keys().cloned().collect())
-        .unwrap_or_default();
-    for k in keys {
-        let Some(v) = user.get(&k).filter(|_| !skip.contains(&k.as_str())) else {
-            continue;
-        };
-        let mut trial = base.clone();
-        match (&mut trial[&k], v) {
-            (Value::Object(dst), Value::Object(src)) if k != "extraBody" => {
-                for (sk, sv) in src {
-                    if dst.contains_key(sk) {
-                        dst.insert(sk.clone(), sv.clone());
-                    }
-                }
-            }
-            (dst, v) => *dst = v.clone(),
-        }
-        if serde_json::from_value::<T>(trial.clone()).is_ok() {
-            *base = trial;
-        }
-    }
+/// The active provider id names an existing slot.
+pub fn valid(s: &Settings) -> bool {
+    s.providers.iter().any(|p| p.id == s.active_provider_id)
 }
 
 /// Persist atomically and update `AppState.settings`. Does not emit or re-register anything.
@@ -179,10 +126,12 @@ pub fn save(app: &AppHandle, s: &Settings) -> Result<(), String> {
 }
 
 fn config_path(app: &AppHandle, file: &str) -> Result<PathBuf, String> {
-    app.path()
-        .app_config_dir()
-        .map(|d| d.join(file))
-        .map_err(|e| e.to_string())
+    user_dir(app).map(|d| d.join(file))
+}
+
+/// `%APPDATA%\OpenGlasses`: settings.json, usage.json and themes/.
+pub fn user_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().config_dir().map(|d| d.join("OpenGlasses")).map_err(|e| e.to_string())
 }
 
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -195,13 +144,13 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     std::fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
+/// The active slot; `load` and `apply_settings` only accept settings where it exists (`valid`).
 pub fn active_provider(s: &Settings) -> Provider {
     s.providers
         .iter()
         .find(|p| p.id == s.active_provider_id)
-        .or(s.providers.first())
         .cloned()
-        .unwrap_or_else(|| defaults().providers.swap_remove(1))
+        .expect("validated by load/apply_settings")
 }
 
 /// True if a request can be attempted: key present, or baseUrl is localhost/127.0.0.1.
@@ -221,17 +170,13 @@ fn entry(id: &str) -> Result<keyring::Entry, String> {
 }
 
 pub fn get_api_key(id: &str) -> Option<String> {
-    entry(id)
-        .ok()?
-        .get_password()
-        .ok()
-        .filter(|k| !k.trim().is_empty())
+    entry(id).ok()?.get_password().ok()
 }
 
 pub fn set_api_key(id: &str, key: &str) -> Result<(), String> {
     let key = key.trim();
     if key.is_empty() {
-        return delete_api_key(id);
+        return Err("empty API key".into());
     }
     entry(id)?.set_password(key).map_err(|e| e.to_string())
 }
@@ -271,7 +216,7 @@ fn read_usage(app: &AppHandle) -> Usage {
 
 /// Add tokens to today's counter in usage.json; returns today's total.
 pub fn add_usage(app: &AppHandle, tokens: u64) -> u64 {
-    let _g = USAGE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = USAGE_LOCK.lock().unwrap();
     let mut u = read_usage(app);
     u.tokens = u.tokens.saturating_add(tokens);
     let written = serde_json::to_vec(&u)
@@ -285,6 +230,6 @@ pub fn add_usage(app: &AppHandle, tokens: u64) -> u64 {
 
 /// Today's total from usage.json (0 if another day).
 pub fn usage_today(app: &AppHandle) -> u64 {
-    let _g = USAGE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _g = USAGE_LOCK.lock().unwrap();
     read_usage(app).tokens
 }

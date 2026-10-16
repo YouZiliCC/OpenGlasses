@@ -24,7 +24,7 @@ export function Panel() {
 function PanelView({ s }: { s: PanelSession }) {
   const panel = usePanel((st) => st.panel);
   const closing = usePanel((st) => st.closing);
-  const glassMode = usePanel((st) => st.settings?.glass ?? "snapshot");
+  const glassMode = usePanel((st) => st.settings!.glass);
   const winH = useWindowHeight();
   const root = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);

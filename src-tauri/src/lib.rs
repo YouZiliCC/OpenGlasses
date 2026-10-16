@@ -31,7 +31,6 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("ogtheme", themes::serve)
         .invoke_handler(tauri::generate_handler![
             commands::frontend_ready,
-            commands::get_settings,
             commands::save_settings,
             commands::set_api_key,
             commands::has_api_key,
@@ -46,7 +45,6 @@ pub fn run() {
             commands::open_settings,
             commands::get_history,
             commands::list_themes,
-            commands::reload_themes,
             commands::open_themes_folder,
         ])
         .on_window_event(|w, e| {

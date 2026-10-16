@@ -7,7 +7,6 @@ body,
 }
 
 .set { display: flex; flex-direction: column; height: 100%; border: var(--og-panel-border); }
-.set-loading { padding: 16px; }
 .dim { color: var(--og-accent-dim); }
 
 /* Title bar: drag region + minimize/close, ~36px like the native one. */

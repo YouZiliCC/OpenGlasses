@@ -87,10 +87,10 @@ fn check_provider(app: &AppHandle) -> bool {
     ok
 }
 
-/// Cursor (physical) and the lens under it, un-suppressed so the session can show.
+/// Cursor (physical) and the ready lens under it, un-suppressed so the session can show.
 fn cursor_lens(app: &AppHandle) -> Option<((i32, i32), LensInfo)> {
     let (x, y) = windows::cursor_pos();
-    let lens = windows::lens_at(app, x, y)?;
+    let lens = windows::lens_at(app, x, y).filter(|l| l.ready)?;
     if lens.suppressed {
         windows::set_lens_suppressed(app, &lens.label, false);
     }
@@ -112,7 +112,6 @@ fn start(app: &AppHandle, ns: NewSession) -> bool {
 fn cancel_select(app: &AppHandle) {
     if let Some(label) = capture::selecting_lens(app) {
         capture::finish_select(app, &label, None);
-        telemetry::set_mode(app, HudMode::Standby);
     }
 }
 
@@ -127,19 +126,20 @@ fn clip_middle(text: &str, max: usize) -> String {
     format!("{head}\n…\n{tail}")
 }
 
-/// After setup: register hotkeys (toast conflicts), wait for the primary lens to be ready then
-/// play Lens-On (if enabled), and on first run with no usable provider open Settings.
+/// After setup: wait for the primary lens and the panel to be ready, then register hotkeys
+/// (toast conflicts), play Lens-On (if enabled), and on first run with no usable provider
+/// open Settings. No session can start before both windows can show it.
 pub fn startup(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         let s = state::settings(&app);
-        let errors = hotkeys::register_all(&app, &s, true);
         let t0 = Instant::now();
-        while !windows::primary_lens(&app).is_some_and(|l| l.ready)
+        while !(windows::primary_lens(&app).is_some_and(|l| l.ready) && windows::is_ready(&app, "panel"))
             && t0.elapsed() < Duration::from_secs(8)
         {
             std::thread::sleep(Duration::from_millis(50));
         }
+        let errors = hotkeys::register_all(&app, &s, glasses_on(&app));
         toast_hotkey_errors(&app, &s, &errors);
         if s.lens_on {
             capture::play_lens_on(&app);
@@ -156,13 +156,7 @@ pub fn startup(app: &AppHandle) {
 
 /// Length of the active theme's boot stage at the current speed (DESIGN §10.4/§10.5).
 fn boot_duration(app: &AppHandle, s: &Settings) -> Duration {
-    let ts = themes::list(app).themes;
-    let boot_ms = ts
-        .iter()
-        .find(|t| t.id == s.theme)
-        .or_else(|| ts.iter().find(|t| t.id == "terminal"))
-        .or(ts.first())
-        .map_or(1000, |t| t.boot_ms);
+    let boot_ms = themes::list(app).themes.iter().find(|t| t.id == s.theme).map_or(1000, |t| t.boot_ms);
     let k = match s.anim_speed {
         AnimSpeed::Fast => 0.6,
         AnimSpeed::Normal => 1.0,
@@ -276,7 +270,7 @@ fn explain_text(
         NewSession {
             kind: Kind::Text,
             lens,
-            anchor: Some(anchor),
+            anchor,
             cursor,
             glass,
             preview: clip_middle(&text, 4000),
@@ -303,13 +297,11 @@ fn on_capture(app: &AppHandle) {
     let Some((_, lens)) = cursor_lens(app) else {
         return;
     };
-    telemetry::set_mode(app, HudMode::Select);
     match capture::begin_select(app, &lens) {
         Ok(()) => busy.next = Phase::Selecting,
         Err(e) => {
             log::warn!("begin_select: {e}");
             toast(app, "CAPTURE FAILED");
-            telemetry::set_mode(app, HudMode::Standby);
         }
     }
 }
@@ -374,7 +366,7 @@ fn scan_start(app: &AppHandle) -> bool {
         app,
         NewSession {
             kind: Kind::Scan,
-            anchor: Some(lens.to_css(region)),
+            anchor: lens.to_css(region),
             cursor: lens.to_css_point(cx, cy),
             glass: capture::glass_from(app, &shot, &lens),
             lens,
@@ -474,7 +466,7 @@ pub fn on_selection(app: &AppHandle, lens: LensInfo, shot: Shot, rect: PhysRect)
         app,
         NewSession {
             kind: Kind::Image,
-            anchor: Some(lens.to_css(rect)),
+            anchor: lens.to_css(rect),
             cursor: lens.to_css_point(cx, cy),
             glass: capture::glass_from(app, &shot, &lens),
             lens,
@@ -514,9 +506,12 @@ pub fn set_glasses(app: &AppHandle, on: bool) {
     }
 }
 
-/// `save_settings`: persist, re-register hotkeys, apply content protection + glass mode,
-/// broadcast `og://settings`; returns hotkey errors.
+/// `save_settings`: reject an unknown active provider, persist, re-register hotkeys, apply
+/// content protection + glass mode, broadcast `og://settings`; returns hotkey errors.
 pub fn apply_settings(app: &AppHandle, s: Settings) -> Result<SaveSettingsResult, String> {
+    if !settings::valid(&s) {
+        return Err("unknown active provider".into());
+    }
     let old = state::settings(app);
     settings::save(app, &s)?;
     let hotkey_errors = hotkeys::register_all(app, &s, glasses_on(app));

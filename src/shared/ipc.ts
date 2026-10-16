@@ -107,7 +107,7 @@ export interface Session {
   style: Style;
   /** Label of the lens window that owns (draws) this session. */
   lens: string;
-  anchor: Rect | null;
+  anchor: Rect;
   cursor: Point;
   glass: Glass | null;
   /** messages[0] = user (source text / caption), messages[1] = first answer. */
@@ -126,7 +126,7 @@ export type SessionEvent =
       kind: Kind;
       style: Style;
       lens: string;
-      anchor: Rect | null;
+      anchor: Rect;
       cursor: Point;
       glass: Glass | null;
       preview: string;
@@ -154,20 +154,16 @@ export interface PanelEvent {
 export interface HistoryEntry {
   id: string;
   kind: Kind;
-  tldr: string;
+  /** The answer (newest entry first); the TL;DR is derived with shared/tldr.ts. */
   text: string;
-  createdAt: number;
 }
 
 export interface InitState {
-  label: string;
   isPrimary: boolean;
   /** Lens only: the monitor work area in this lens's CSS px. */
   workArea: Rect | null;
   settings: Settings;
   hud: HudState | null;
-  active: Session | null;
-  panel: PanelEvent | null;
   glassesOn: boolean;
 }
 
@@ -178,7 +174,7 @@ export interface ThemeInfo {
   author: string;
   version: string;
   description: string;
-  /** Boot animation length at normal speed, ms (clamped 300–4000). */
+  /** Boot animation length at normal speed, ms (300–4000; other values skip the theme). */
   bootMs: number;
   /** Shipped with the app (false = user theme folder; overrides a built-in with the same id). */
   builtin: boolean;
@@ -224,7 +220,6 @@ export interface EventMap {
 /** Command name → [args, return type]. Args are camelCase (Tauri converts to snake_case). */
 export interface CommandMap {
   frontend_ready: [Record<string, never>, InitState];
-  get_settings: [Record<string, never>, Settings];
   save_settings: [{ settings: Settings }, { hotkeyErrors: Partial<Record<HotkeyAction, string>> }];
   set_api_key: [{ id: string; key: string }, void];
   has_api_key: [{ id: string }, boolean];
@@ -239,7 +234,6 @@ export interface CommandMap {
   open_settings: [Record<string, never>, void];
   get_history: [Record<string, never>, HistoryEntry[]];
   list_themes: [Record<string, never>, ThemesEvent];
-  reload_themes: [Record<string, never>, ThemesEvent];
   open_themes_folder: [Record<string, never>, void];
 }
 

@@ -121,7 +121,7 @@ fn update_suppression(app: &AppHandle, fg: Option<&SourceInfo>) {
     }
     let lenses = crate::windows::lenses(app);
     let target = fg
-        .filter(|s| s.hwnd != 0 && !matches!(grab::class_name(s.hwnd).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd"))
+        .filter(|s| !matches!(grab::class_name(s.hwnd).as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd"))
         .and_then(|s| lenses.iter().find(|l| l.bounds == s.rect))
         .map(|l| l.label.as_str())
         .filter(|&label| {

@@ -6,7 +6,7 @@ use crate::types::*;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
 use tauri::http::{header, Request, Response};
 use tauri::{AppHandle, Emitter, Manager, UriSchemeContext, UriSchemeResponder, Wry};
@@ -23,22 +23,22 @@ pub struct ThemeState {
     pub current: Mutex<Option<ThemesEvent>>,
 }
 
-/// `theme.json`. Missing fields take defaults; a bad `bootMs` falls back to 1000.
-#[derive(Deserialize, Default)]
-#[serde(default)]
+/// `theme.json`. Every field is required; `bootMs` must be 300-4000.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Manifest {
     name: String,
     author: String,
     version: String,
     description: String,
-    #[serde(rename = "bootMs")]
-    boot_ms: serde_json::Value,
+    boot_ms: u32,
 }
 
-/// Built-in themes: `<resource_dir>/themes`. User themes: `<app_config_dir>/themes` (created
-/// on demand). A user theme overrides a built-in one with the same id.
+/// Built-in themes: `<resource_dir>/themes`. User themes: `settings::user_dir()/themes`, e.g.
+/// `%APPDATA%\OpenGlasses\themes` (created on demand). A user theme overrides a built-in one
+/// with the same id.
 pub fn user_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path().app_config_dir().map(|d| d.join("themes")).map_err(|e| e.to_string())
+    crate::settings::user_dir(app).map(|d| d.join("themes"))
 }
 
 /// tauri-build copies `bundle.resources` next to the exe at build time, so in debug builds
@@ -59,9 +59,9 @@ pub fn list(app: &AppHandle) -> ThemesEvent {
     cur(app).get_or_insert_with(|| ThemesEvent { themes: scan(app, 0), rev: 0 }).clone()
 }
 
-/// Force a rescan, then broadcast `og://themes`. Always bumps `rev` (callers are the watcher on
-/// a file change and the Reload button), so every window refetches CSS whose content changed.
-pub fn reload(app: &AppHandle) -> ThemesEvent {
+/// Force a rescan, then broadcast `og://themes`. Always bumps `rev` (caller: the watcher on a
+/// file change), so every window refetches CSS whose content changed.
+fn reload(app: &AppHandle) {
     let ev = {
         let mut cur = cur(app);
         let rev = cur.as_ref().map_or(0, |e| e.rev + 1);
@@ -73,7 +73,6 @@ pub fn reload(app: &AppHandle) -> ThemesEvent {
     if let Err(e) = app.emit(ev::THEMES, &ev) {
         log::warn!("emit themes: {e}");
     }
-    ev
 }
 
 /// Poll both theme folders every second (path, size, mtime fingerprint); on change -> `reload`.
@@ -94,7 +93,7 @@ pub fn spawn_watcher(app: AppHandle) {
     }
 }
 
-/// `ogtheme://<id>/<relative path>`: serve a file from that theme's folder only (no `..`,
+/// `ogtheme://<id>/r<rev>/<relative path>`: serve a file from that theme's folder only (no `..`,
 /// no backslashes, extension whitelist, ≤ 8 MB) with Content-Type, `Cache-Control: no-store`
 /// and `Access-Control-Allow-Origin: *` (mask-image / @font-face fetch in CORS mode); else 404.
 /// WebView2 calls this on the main thread, so the disk read happens on a worker thread.
@@ -123,7 +122,7 @@ pub fn open_folder(app: &AppHandle) -> Result<(), String> {
 // ---------------------------------------------------------------- scanning
 
 fn cur(app: &AppHandle) -> MutexGuard<'_, Option<ThemesEvent>> {
-    st(app).inner().themes.current.lock().unwrap_or_else(PoisonError::into_inner)
+    st(app).inner().themes.current.lock().unwrap()
 }
 
 /// `^[a-z0-9][a-z0-9-]{0,31}$`
@@ -176,17 +175,20 @@ fn read_theme(dir: &Path) -> Result<Manifest, String> {
         return Err("missing theme.css".into());
     }
     let text = fs::read_to_string(dir.join("theme.json")).map_err(|e| format!("theme.json: {e}"))?;
-    // Notepad saves UTF-8 with a BOM, which serde_json rejects.
-    serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| format!("theme.json: {e}"))
+    let m: Manifest = serde_json::from_str(&text).map_err(|e| format!("theme.json: {e}"))?;
+    if !(300..=4000).contains(&m.boot_ms) {
+        return Err("bootMs must be 300-4000".into());
+    }
+    Ok(m)
 }
 
 fn info(id: String, m: Manifest, builtin: bool, rev: u64) -> ThemeInfo {
     ThemeInfo {
-        name: if m.name.trim().is_empty() { id.clone() } else { m.name },
+        name: m.name,
         author: m.author,
         version: m.version,
         description: m.description,
-        boot_ms: m.boot_ms.as_f64().map_or(1000, |n| n.clamp(300.0, 4000.0).round() as u32),
+        boot_ms: m.boot_ms,
         builtin,
         // The revision is a path segment, not a query, so relative url()s in the sheet
         // (svg/png/fonts) resolve to new URLs too and hot-reload with it.
@@ -224,15 +226,12 @@ fn fingerprint(app: &AppHandle) -> Vec<(PathBuf, u64, Option<SystemTime>)> {
 
 // ---------------------------------------------------------------- protocol
 
-/// Resolve `/<id>/<rest>` to (mime, bytes); None for anything outside the rules.
+/// Resolve `/<id>/r<rev>/<rest>` to (mime, bytes); None for anything outside the rules.
+/// The cache-busting `r<rev>` segment (from `css_url`) is ignored.
 fn load(app: &AppHandle, raw: &str) -> Option<(&'static str, Vec<u8>)> {
     let path = percent_decode(raw.trim_start_matches('/'))?;
     let (id, rest) = path.split_once('/')?;
-    // Drop the cache-busting `r<rev>/` segment that css_url puts in front of every theme file.
-    let rest = match rest.split_once('/') {
-        Some((seg, tail)) if seg.len() > 1 && seg.starts_with('r') && seg[1..].bytes().all(|c| c.is_ascii_digit()) => tail,
-        _ => rest,
-    };
+    let (_rev, rest) = rest.split_once('/')?;
     // ':' covers drive letters and NTFS alternate streams; an empty segment covers absolute
     // paths and `//`.
     if !valid_id(id) || rest.contains(['\\', ':', '\0']) {
@@ -250,8 +249,7 @@ fn load(app: &AppHandle, raw: &str) -> Option<(&'static str, Vec<u8>)> {
     if !file.starts_with(&root) || !meta.is_file() || meta.len() > MAX_FILE {
         return None;
     }
-    let bytes = fs::read(&file).ok()?;
-    (bytes.len() as u64 <= MAX_FILE).then_some((mime, bytes))
+    fs::read(&file).ok().map(|b| (mime, b))
 }
 
 fn mime(ext: &str) -> Option<&'static str> {
@@ -266,7 +264,6 @@ fn mime(ext: &str) -> Option<&'static str> {
         "woff" => "font/woff",
         "ttf" => "font/ttf",
         "otf" => "font/otf",
-        "json" => "application/json",
         _ => return None,
     })
 }

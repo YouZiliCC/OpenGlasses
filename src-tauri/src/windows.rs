@@ -73,21 +73,14 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 pub fn frontend_ready(app: &AppHandle, label: &str) -> InitState {
     let glasses_on = st(app).glasses_on.load(Ordering::SeqCst);
     let mut init = InitState {
-        label: label.to_string(),
         is_primary: false,
         work_area: None,
         settings: state::settings(app),
         hud: None,
-        active: None,
-        panel: None,
         glasses_on,
     };
     if label == PANEL {
-        let mut p = win(app).panel.lock().unwrap();
-        p.ready = true;
-        init.panel = p.event.clone();
-        drop(p);
-        init.active = crate::ai::snapshot(app);
+        win(app).panel.lock().unwrap().ready = true;
     } else if label == SETTINGS {
         win(app).settings_ready.store(true, Ordering::SeqCst);
     } else {
@@ -107,10 +100,6 @@ pub fn frontend_ready(app: &AppHandle, label: &str) -> InitState {
         if lens.primary {
             init.hud = Some(st(app).hud.lock().unwrap().clone());
         }
-        init.active = crate::ai::snapshot(app).filter(|s| s.lens == label);
-        // A reloaded lens needs to know whether its session's panel is already open.
-        let panel = win(app).panel.lock().unwrap().event.clone();
-        init.panel = panel.filter(|e| init.active.as_ref().is_some_and(|a| a.id == e.id));
     }
     init
 }
@@ -138,8 +127,7 @@ pub fn lens_at(app: &AppHandle, x: i32, y: i32) -> Option<LensInfo> {
 }
 
 pub fn primary_lens(app: &AppHandle) -> Option<LensInfo> {
-    let v = win(app).lenses.lock().unwrap();
-    v.iter().find(|l| l.primary).or(v.first()).cloned()
+    win(app).lenses.lock().unwrap().iter().find(|l| l.primary).cloned()
 }
 
 /// GetCursorPos, physical px.
@@ -154,15 +142,19 @@ pub(crate) fn try_cursor_pos() -> Option<(i32, i32)> {
     Some((p.x, p.y))
 }
 
-/// Emit to one window by label, but only once that window reported `frontend_ready`.
-pub fn emit_to_window<S: Serialize + Clone>(app: &AppHandle, label: &str, event: &str, payload: S) {
+/// The window `label` (a lens, "panel" or "settings") has reported `frontend_ready`.
+pub fn is_ready(app: &AppHandle, label: &str) -> bool {
     let w = win(app);
-    let ready = match label {
+    match label {
         PANEL => w.panel.lock().unwrap().ready,
         SETTINGS => w.settings_ready.load(Ordering::SeqCst),
         _ => w.lenses.lock().unwrap().iter().any(|l| l.label == label && l.ready),
-    };
-    if ready {
+    }
+}
+
+/// Emit to one window by label, but only once that window reported `frontend_ready`.
+pub fn emit_to_window<S: Serialize + Clone>(app: &AppHandle, label: &str, event: &str, payload: S) {
+    if is_ready(app, label) {
         if let Err(e) = app.emit_to(label, event, payload) {
             log::warn!("emit {event} to {label}: {e}");
         }

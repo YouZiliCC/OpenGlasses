@@ -9,16 +9,11 @@ import { SettingsApp, useSaved } from "./Settings";
 async function main() {
   // og://settings reaches the theme through the draft (Editor previews draft.theme/animSpeed).
   await Promise.all([on("og://settings", (saved) => useSaved.setState({ saved })), on("og://themes", onThemes)]);
-  // Marks this window ready for events (DESIGN §3.8 rule 3); its InitState is not needed here.
-  call("frontend_ready").catch(console.error);
-  try {
-    const saved = await call("get_settings");
-    useSaved.setState((st) => (st.saved ? {} : { saved }));
-  } catch (e) {
-    useSaved.setState({ loadError: String(e) });
-  }
-  await initTheme(useSaved.getState().saved);
+  const { settings } = await call("frontend_ready");
+  // og://settings may race ahead of the reply; it is newer than the snapshot.
+  useSaved.setState((st) => (st.saved ? {} : { saved: settings }));
+  await initTheme(useSaved.getState().saved!);
   createRoot(document.getElementById("root")!).render(<SettingsApp />);
 }
 
-void main();
+main().catch(console.error);

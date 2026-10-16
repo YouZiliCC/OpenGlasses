@@ -239,14 +239,14 @@ pub struct Message {
     pub text: String,
 }
 
-/// Frontend view of the active session (also returned in `InitState.active`).
+/// Frontend view of the active session.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
     pub kind: Kind,
     pub style: Style,
     pub lens: String,
-    pub anchor: Option<Rect>,
+    pub anchor: Rect,
     pub cursor: Point,
     pub glass: Option<Glass>,
     pub messages: Vec<Message>,
@@ -264,7 +264,7 @@ pub enum SessionEvent {
         kind: Kind,
         style: Style,
         lens: String,
-        anchor: Option<Rect>,
+        anchor: Rect,
         cursor: Point,
         glass: Option<Glass>,
         preview: String,
@@ -316,21 +316,16 @@ pub struct PanelEvent {
 pub struct HistoryEntry {
     pub id: String,
     pub kind: Kind,
-    pub tldr: String,
     pub text: String,
-    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitState {
-    pub label: String,
     pub is_primary: bool,
     pub work_area: Option<Rect>,
     pub settings: Settings,
     pub hud: Option<HudState>,
-    pub active: Option<Session>,
-    pub panel: Option<PanelEvent>,
     pub glasses_on: bool,
 }
 

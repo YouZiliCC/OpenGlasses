@@ -1,8 +1,8 @@
-// Panel state: the active session (og://session), the current panel request (og://panel),
-// settings (for the glass mode) and the read-only history shown in Rail mode.
+// Panel state: the active session (og://session), the current panel request (og://panel) and
+// settings (for the glass mode).
 import { create } from "zustand";
 import { call } from "../shared/bridge";
-import type { HistoryEntry, InitState, Message, PanelEvent, Session, SessionEvent, Settings } from "../shared/ipc";
+import type { InitState, Message, PanelEvent, Session, SessionEvent, Settings } from "../shared/ipc";
 
 export interface MsgError {
   code: string;
@@ -20,7 +20,6 @@ interface PanelState {
   panel: PanelEvent | null;
   /** Fading out after `dismiss` (150 ms). */
   closing: boolean;
-  history: HistoryEntry[];
 }
 
 export const usePanel = create<PanelState>()(() => ({
@@ -28,7 +27,6 @@ export const usePanel = create<PanelState>()(() => ({
   session: null,
   panel: null,
   closing: false,
-  history: [],
 }));
 
 const set = usePanel.setState;
@@ -36,21 +34,8 @@ const get = usePanel.getState;
 let fadeTimer = 0;
 
 export function applyInit(init: InitState) {
-  const a = init.active;
-  set({
-    settings: init.settings,
-    panel: init.panel,
-    // The snapshot only carries the last error code; attach it to the last message.
-    session: a && { ...a, errors: a.error ? { [a.messages.length - 1]: { code: a.error, message: "" } } : {} },
-  });
-  refreshHistory();
-}
-
-export function refreshHistory() {
-  call("get_history").then(
-    (history) => set({ history }),
-    (e) => console.error("get_history", e),
-  );
+  // og://settings may race ahead of the frontend_ready reply; it is newer than the snapshot.
+  set({ settings: get().settings ?? init.settings });
 }
 
 /** Update the active session if `id` matches it. */
@@ -64,8 +49,8 @@ export function onSession(e: SessionEvent) {
     case "start":
       // A running dismiss fade keeps going: the new session becomes visible only when it
       // requests the panel (onPanel), so the old panel never flashes the new content.
-      set((st) => ({
-        panel: st.panel?.id === e.id ? st.panel : null,
+      set({
+        panel: null,
         session: {
           id: e.id,
           kind: e.kind,
@@ -84,8 +69,7 @@ export function onSession(e: SessionEvent) {
           pinned: false,
           errors: {},
         },
-      }));
-      refreshHistory();
+      });
       break;
     case "user":
       patch(e.id, (s) => ({
@@ -97,13 +81,12 @@ export function onSession(e: SessionEvent) {
         streaming: true,
         error: null,
         // Rust pins the session on the first follow-up.
-        pinned: s.pinned || e.msgIndex >= 2,
+        pinned: true,
       }));
       break;
     case "delta":
       patch(e.id, (s) => {
         const messages: Message[] = s.messages.slice();
-        while (messages.length <= e.msgIndex) messages.push({ role: "assistant", text: "" });
         messages[e.msgIndex] = { ...messages[e.msgIndex], text: messages[e.msgIndex].text + e.text };
         return { messages, streaming: true };
       });
@@ -134,7 +117,6 @@ export function onSession(e: SessionEvent) {
           panel: st.panel?.id === e.id ? null : st.panel,
         });
       }, 150);
-      refreshHistory();
       break;
     }
     // "stale" only concerns the lens (brackets and leader lines).

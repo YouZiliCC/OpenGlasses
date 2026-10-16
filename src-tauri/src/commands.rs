@@ -2,17 +2,12 @@
 //! All commands are `async` so they never run inline on the main thread.
 
 use crate::types::*;
-use crate::{actions, ai, capture, settings, state, themes, windows};
+use crate::{actions, ai, capture, settings, themes, windows};
 use tauri::{AppHandle, WebviewWindow};
 
 #[tauri::command]
 pub async fn frontend_ready(app: AppHandle, window: WebviewWindow) -> InitState {
     windows::frontend_ready(&app, window.label())
-}
-
-#[tauri::command]
-pub async fn get_settings(app: AppHandle) -> Settings {
-    state::settings(&app)
 }
 
 #[tauri::command]
@@ -96,11 +91,6 @@ pub async fn get_history(app: AppHandle) -> Vec<HistoryEntry> {
 #[tauri::command]
 pub async fn list_themes(app: AppHandle) -> ThemesEvent {
     themes::list(&app)
-}
-
-#[tauri::command]
-pub async fn reload_themes(app: AppHandle) -> ThemesEvent {
-    themes::reload(&app)
 }
 
 #[tauri::command]

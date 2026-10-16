@@ -7,17 +7,17 @@ reference examples (start from `themes/terminal/theme.css`). Design background: 
 ## How it works
 
 - **Where:** built-in themes ship with the app. User themes go in
-  `%APPDATA%\io.github.youzilicc.openglasses\themes\<id>\`
+  `%APPDATA%\OpenGlasses\themes\<id>\`
   (Settings → Appearance → **Open themes folder** creates and opens it). A user theme with the
   same id as a built-in one replaces it.
 - **Runtime:** themes are discovered while the app runs. Switching themes needs no restart, and
-  edits to any theme file are picked up within about 1 s (hot reload). **Reload themes** forces a rescan.
+  edits to any theme file are picked up within about 1 s (hot reload).
 - **Loading:** every window (lens overlays, answer panel, settings) loads the app's `base.css`,
   then your `theme.css` as `<link id="og-theme">`, the last element in `<head>`, so at equal
   specificity your rules win. The root element gets `data-theme="<id>"`.
 - **Choosing:** Settings → Appearance → Theme previews the selection in the settings window at
-  once; **Save** applies it everywhere. If the saved id is missing, the app falls back to
-  `terminal`, then to the first theme found, then to `base.css` alone (still usable).
+  once; **Save** applies it everywhere. If the saved id is not installed, the app shows
+  `base.css` alone (the Terminal Green look).
 
 ## Pack layout and manifest
 
@@ -36,19 +36,20 @@ reference examples (start from `themes/terminal/theme.css`). Design background: 
 | Field | Meaning |
 |---|---|
 | `name`, `author`, `version`, `description` | Shown in Settings → Appearance |
-| `bootMs` | Length of your boot animation at normal speed. The boot stage is removed after `bootMs × speed`. Missing or invalid → 1000; clamped to 300–4000 |
+| `bootMs` | Length of your boot animation at normal speed, 300–4000. The boot stage is removed after `bootMs × speed` |
 
-A folder whose `theme.json` does not parse is skipped (the reason goes to the log).
+All five fields are required. A folder whose `theme.json` does not parse, lacks a field, has a
+field of the wrong type or a `bootMs` outside 300–4000 is skipped (the reason goes to the log).
 
 ## Security model
 
 The overlay windows can call the AI, take screenshots and read the selection, so themes get
 **no code and no network**:
 
-- Only `.css`, `.json` and the asset extensions listed above are served, at most 8 MB each.
+- Only `.css` and the asset extensions listed above are served, at most 8 MB each.
   There is no JavaScript: `.js` and HTML files are never served, and nothing runs a script.
-- Files are served by the local `ogtheme` protocol (`http://ogtheme.localhost/<id>/<path>`),
-  only from inside that theme's own folder (`..`, backslashes and absolute paths give 404).
+- Files are served by the local `ogtheme` protocol, only from inside that theme's own folder
+  (`..`, backslashes and absolute paths give 404). Always reference assets with relative `url()`s.
 - The Content Security Policy allows styles, images and fonts from `ogtheme` only, and
   `connect-src` is unchanged. Remote `url()`s and `@import`s from the internet are blocked, so
   CSS cannot send anything anywhere. Under `pnpm tauri dev` the app is served by Vite instead of
@@ -189,7 +190,7 @@ These class names (and the `og-*` ones) are public API: renaming one is a breaki
 | Class | What |
 |---|---|
 | `.og-titlebar`, `.og-titlebar-title`, `.og-titlebar-btn`, `.og-titlebar-close` | Custom title bar (≈36 px; drag region), its title, minimize/close buttons, the close button |
-| `.set`, `.set-loading` | Window frame (`--og-panel-border`) / loading or error message |
+| `.set` | Window frame (`--og-panel-border`) |
 | `.set-tabs`, `.set-brand`, `.tab` (`.on`) | Tab row, ◉ OPENGLASSES brand, tab buttons |
 | `.set-main`, `.set-bar`, `.set-status` | Scrolling content, bottom bar with Save/Revert, its status text |
 | `.sec`, `.field`, `.lbl`, `.hint`, `.note` | Section (title is its `h3`), label/control row, label, help line, intro note |
